@@ -107,10 +107,10 @@
     } else {
       banner.innerHTML = `<div class="badge confirmed">Approved · ★ ${vendor.rating.toFixed(1)} (${vendor.reviewCount} reviews)</div>`;
     }
-    renderPackages(vendor.packages);
+    renderPackages(vendor.packages, vendor.category);
   }
 
-  function renderPackages(packages) {
+  function renderPackages(packages, category) {
     const grid = document.getElementById("packages-grid");
     if (!packages.length) {
       grid.innerHTML = `<div class="empty-state" style="grid-column:1/-1">No packages yet — add your first one above.</div>`;
@@ -118,7 +118,7 @@
     }
     grid.innerHTML = packages.map(pkg => `
       <div class="card">
-        <div class="card-img">${pkg.imageUrl ? `<img src="${pkg.imageUrl}" alt="${pkg.name}">` : "🎉"}</div>
+        <div class="card-img">${pkg.imageUrl ? `<img src="${pkg.imageUrl}" alt="${pkg.name}">` : categoryIconSvg(category)}</div>
         <div class="card-body">
           <h4>${pkg.name}</h4>
           <div class="desc">${pkg.description || ""}</div>

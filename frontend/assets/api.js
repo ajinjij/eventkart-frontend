@@ -100,6 +100,17 @@ function navSearch() {
   window.location.href = `index.html${val ? "?search=" + encodeURIComponent(val) : ""}`;
 }
 
+// ---- Category icon illustrations (inline SVG, drawn in-house — no external images) ----
+function categoryIconSvg(category) {
+  const icons = {
+    wedding: `<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="17" cy="26" r="9"/><circle cx="31" cy="26" r="9"/><path d="M20 13l4-6 4 6" stroke-linejoin="round"/></svg>`,
+    corporate: `<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="18" width="32" height="20" rx="2"/><path d="M17 18v-4a3 3 0 0 1 3-3h8a3 3 0 0 1 3 3v4"/><path d="M8 27h32"/></svg>`,
+    birthday: `<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M24 12c8 0 14 6 14 14v10H10V26c0-8 6-14 14-14z"/><path d="M24 12V6M18 12c0-3 2-4 2-6M30 12c0-3-2-4-2-6"/><path d="M10 30h28"/></svg>`,
+    other: `<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M24 6l4 12 12 4-12 4-4 12-4-12-12-4 12-4z"/></svg>`,
+  };
+  return icons[category] || icons.other;
+}
+
 // ---- Money / rating helpers ----
 function formatMoney(n) { return "₹" + Number(n).toLocaleString("en-IN"); }
 

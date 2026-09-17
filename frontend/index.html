@@ -10,14 +10,7 @@
 
 <header><div class="header-inner" id="site-nav"></div></header>
 <div class="category-strip">
-  <div class="wrap">
-    <a href="#" onclick="setCategory('wedding');return false">Weddings</a>
-    <a href="#" onclick="setCategory('corporate');return false">Corporate events</a>
-    <a href="#" onclick="setCategory('birthday');return false">Birthday parties</a>
-    <a href="#" onclick="setCategory('');return false">All categories</a>
-    <a href="wishlist.html">Wishlist</a>
-    <a href="bookings.html">My Orders</a>
-  </div>
+  <div class="wrap" id="category-strip-links"></div>
 </div>
 
 <div class="wrap page">
@@ -83,6 +76,15 @@
 
 <script src="assets/api.js"></script>
 <script>
+  document.getElementById("category-strip-links").innerHTML = `
+    <a href="#" onclick="setCategory('wedding');return false">${categoryIconSvg('wedding')} Weddings</a>
+    <a href="#" onclick="setCategory('corporate');return false">${categoryIconSvg('corporate')} Corporate events</a>
+    <a href="#" onclick="setCategory('birthday');return false">${categoryIconSvg('birthday')} Birthday parties</a>
+    <a href="#" onclick="setCategory('');return false">All categories</a>
+    <a href="wishlist.html">Wishlist</a>
+    <a href="bookings.html">My Orders</a>
+  `;
+
   let activeCategory = "";
   let priceMin = 0, priceMax = 0;
   let minRating = 0;
@@ -111,7 +113,7 @@
     grid.innerHTML = packages.map(pkg => `
       <div class="card" style="cursor:pointer" onclick="window.location.href='package.html?id=${pkg.id}'">
         <div class="wishlist-heart ${wishlistIds.has(pkg.id) ? "active" : ""}" onclick="event.stopPropagation(); toggleWishlist(${pkg.id}, this)">♥</div>
-        <div class="card-img">${pkg.imageUrl ? `<img src="${pkg.imageUrl}" alt="${pkg.name}">` : "🎉"}</div>
+        <div class="card-img">${pkg.imageUrl ? `<img src="${pkg.imageUrl}" alt="${pkg.name}">` : categoryIconSvg(pkg.vendor.category)}</div>
         <div class="card-body">
           <div class="cat">${pkg.vendor.category} · ${pkg.vendor.city}</div>
           <h4>${pkg.name}</h4>
@@ -206,7 +208,7 @@
       <div class="grid">
         ${recommended.map(pkg => `
           <div class="card" style="cursor:pointer" onclick="window.location.href='package.html?id=${pkg.id}'">
-            <div class="card-img">${pkg.imageUrl ? `<img src="${pkg.imageUrl}" alt="${pkg.name}">` : "🎉"}</div>
+            <div class="card-img">${pkg.imageUrl ? `<img src="${pkg.imageUrl}" alt="${pkg.name}">` : categoryIconSvg(pkg.vendor.category)}</div>
             <div class="card-body">
               <div class="cat">${pkg.vendor.category} · ${pkg.vendor.city}</div>
               <h4>${pkg.name}</h4>

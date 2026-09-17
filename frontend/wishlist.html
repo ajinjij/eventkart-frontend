@@ -36,7 +36,7 @@
       return `
       <div class="card" style="cursor:pointer" onclick="window.location.href='package.html?id=${pkg.id}'">
         <div class="wishlist-heart active" onclick="event.stopPropagation(); removeFromWishlist(${pkg.id})">♥</div>
-        <div class="card-img">${pkg.imageUrl ? `<img src="${pkg.imageUrl}" alt="${pkg.name}">` : "🎉"}</div>
+        <div class="card-img">${pkg.imageUrl ? `<img src="${pkg.imageUrl}" alt="${pkg.name}">` : categoryIconSvg(pkg.vendor.category)}</div>
         <div class="card-body">
           <div class="cat">${pkg.vendor.category} · ${pkg.vendor.city}</div>
           <h4>${pkg.name}</h4>
