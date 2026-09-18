@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Search — Loomybox.com</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+
+<header><div class="header-inner" id="site-nav"></div></header>
+
+<div class="wrap page">
+  <h1>Browse event services</h1>
+
+  <div class="shop-layout">
+    <aside class="filters-panel">
+      <h4>Filters</h4>
+
+      <div class="filter-group">
+        <div class="group-title">Category</div>
+        <label class="filter-option"><input type="radio" name="cat" onclick="setCategory('')" id="cat-all"> All</label>
+        <div id="category-filter-options"></div>
+      </div>
+
+      <div class="filter-group">
+        <div class="group-title">Location</div>
+        <label style="font-size:12px;color:var(--ink-soft);display:block;margin-bottom:4px">District (Kerala)</label>
+        <select id="district-select" onchange="setDistrict(this.value)" style="width:100%;margin-bottom:10px">
+          <option value="">All districts</option>
+        </select>
+        <label style="font-size:12px;color:var(--ink-soft);display:block;margin-bottom:4px">Pincode</label>
+        <input type="text" id="pincode-input" placeholder="e.g. 682001" style="width:100%" onchange="setPincode(this.value)">
+      </div>
+
+      <div class="filter-group">
+        <div class="group-title">Price range</div>
+        <label class="filter-option"><input type="radio" name="price" onclick="setPrice(0,0)" checked> Any price</label>
+        <label class="filter-option"><input type="radio" name="price" onclick="setPrice(0,50000)"> Under ₹50,000</label>
+        <label class="filter-option"><input type="radio" name="price" onclick="setPrice(50000,200000)"> ₹50,000 – ₹2,00,000</label>
+        <label class="filter-option"><input type="radio" name="price" onclick="setPrice(200000,0)"> Above ₹2,00,000</label>
+      </div>
+
+      <div class="filter-group">
+        <div class="group-title">Customer rating</div>
+        <label class="filter-option"><input type="radio" name="rating" onclick="setRating(0)" checked> All ratings</label>
+        <label class="filter-option"><input type="radio" name="rating" onclick="setRating(4)"> ★ 4 & above</label>
+        <label class="filter-option"><input type="radio" name="rating" onclick="setRating(4.5)"> ★ 4.5 & above</label>
+      </div>
+    </aside>
+
+    <div>
+      <div class="results-toolbar">
+        <span id="results-label">Loading packages…</span>
+        <select id="sort-select" onchange="runSearch()">
+          <option value="newest">Sort: Newest</option>
+          <option value="price_asc">Price: Low to High</option>
+          <option value="price_desc">Price: High to Low</option>
+          <option value="rating">Customer rating</option>
+        </select>
+      </div>
+      <div class="grid" id="results-grid"></div>
+    </div>
+  </div>
+</div>
+
+<footer>Loomybox.com · connecting customers with trusted event partners</footer>
+
+<script src="assets/api.js"></script>
+<script>
+  renderNav();
+
+  // Populate category radio buttons and district dropdown from the shared lists in api.js.
+  document.getElementById("category-filter-options").innerHTML = CATEGORIES.map(c => `
+    <label class="filter-option"><input type="radio" name="cat" onclick="setCategory('${c.value}')" id="cat-${c.value}"> ${c.label}</label>
+  `).join("");
+  document.getElementById("district-select").innerHTML += KERALA_DISTRICTS.map(d => `<option value="${d}">${d}</option>`).join("");
+
+  let activeCategory = "";
+  let priceMin = 0, priceMax = 0;
+  let minRating = 0;
+  let activeDistrict = localStorage.getItem("ek_district") || "";
+  let activePincode = "";
+
+  // Called by the header's location dropdown (see api.js renderLocationPicker) if it's
+  // changed while already on this page, so both pickers stay in sync.
+  function applyDistrictFilter(district) {
+    activeDistrict = district;
+    document.getElementById("district-select").value = district;
+    runSearch();
+  }
+
+  async function renderResults(packages) {
+    const grid = document.getElementById("results-grid");
+    const label = document.getElementById("results-label");
+    label.textContent = packages.length
+      ? `${packages.length} result${packages.length === 1 ? "" : "s"}`
+      : "";
+
+    if (packages.length === 0) {
+      grid.innerHTML = `<div class="empty-state" style="grid-column:1/-1">No packages match these filters. Try widening your search.</div>`;
+      return;
+    }
+
+    let wishlistIds = new Set();
+    const user = getUser();
+    if (user && user.role === "CUSTOMER") {
+      try {
+        const wishlist = await apiFetch("/wishlist");
+        wishlistIds = new Set(wishlist.map(w => w.packageId));
+      } catch (e) { /* ignore */ }
+    }
+
+    grid.innerHTML = packages.map(pkg => `
+      <div class="card" style="cursor:pointer" onclick="window.location.href='package.html?id=${pkg.id}'">
+        <div class="wishlist-heart ${wishlistIds.has(pkg.id) ? "active" : ""}" onclick="event.stopPropagation(); toggleWishlist(${pkg.id}, this)">♥</div>
+        <div class="card-img">${pkg.imageUrl ? `<img src="${pkg.imageUrl}" alt="${pkg.name}">` : categoryIconSvg(pkg.vendor.category)}</div>
+        <div class="card-body">
+          <div class="cat">${pkg.vendor.category} · ${pkg.vendor.city}</div>
+          <h4>${pkg.name}</h4>
+          <span class="rating-badge">★ ${pkg.vendor.rating.toFixed(1)}</span>
+          ${priceRowHtml(pkg)}
+          <div class="desc">${pkg.description || pkg.vendor.businessName}</div>
+          <button class="btn btn-fill" style="width:100%" onclick="event.stopPropagation(); addToCart(${pkg.id}, this)">Add to cart</button>
+        </div>
+      </div>
+    `).join("");
+  }
+
+  async function runSearch() {
+    const search = document.getElementById("search-input") ? document.getElementById("search-input").value.trim() : (window._presetSearch || "");
+    const sort = document.getElementById("sort-select").value;
+    const params = new URLSearchParams();
+    if (search) params.set("search", search);
+    if (activeCategory) params.set("category", activeCategory);
+    if (activeDistrict) params.set("district", activeDistrict);
+    if (activePincode) params.set("pincode", activePincode);
+    if (priceMin) params.set("minPrice", priceMin);
+    if (priceMax) params.set("maxPrice", priceMax);
+    if (minRating) params.set("minRating", minRating);
+    params.set("sort", sort);
+
+    document.getElementById("results-label").textContent = "Searching…";
+    try {
+      const packages = await apiFetch(`/packages?${params.toString()}`);
+      renderResults(packages);
+    } catch (err) {
+      document.getElementById("results-label").textContent = err.message;
+    }
+  }
+
+  function setCategory(cat) { activeCategory = cat; runSearch(); }
+  function setDistrict(d) { activeDistrict = d; localStorage.setItem("ek_district", d); runSearch(); }
+  function setPincode(p) { activePincode = p.trim(); runSearch(); }
+  function setPrice(min, max) { priceMin = min; priceMax = max; runSearch(); }
+  function setRating(r) { minRating = r; runSearch(); }
+
+  async function addToCart(packageId, btn) {
+    const user = getUser();
+    if (!user) { window.location.href = "customer-auth.html"; return; }
+    if (user.role !== "CUSTOMER") { alert("Only customer accounts can add packages to a cart."); return; }
+    btn.disabled = true;
+    const originalText = btn.textContent;
+    btn.textContent = "Adding…";
+    try {
+      await apiFetch("/cart/items", { method: "POST", body: JSON.stringify({ packageId }) });
+      btn.textContent = "Added ✓";
+      renderNav();
+    } catch (err) {
+      btn.disabled = false;
+      btn.textContent = originalText;
+      alert(err.message);
+    }
+  }
+
+  // Prefill from the URL (arriving from a category icon, the header search, or a link).
+  const urlParams = new URLSearchParams(window.location.search);
+  window._presetSearch = urlParams.get("search") || "";
+  if (urlParams.get("category")) {
+    activeCategory = urlParams.get("category");
+    const radio = document.getElementById(`cat-${activeCategory}`);
+    if (radio) radio.checked = true;
+  } else {
+    document.getElementById("cat-all").checked = true;
+  }
+  if (activeDistrict) document.getElementById("district-select").value = activeDistrict;
+
+  // Add a visible search box at the top of the results column if we don't already have one in the header.
+  runSearch();
+</script>
+</body>
+</html>

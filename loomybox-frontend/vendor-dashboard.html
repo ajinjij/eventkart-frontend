@@ -24,16 +24,19 @@
       </div>
       <div class="field">
         <label>Category</label>
-        <select id="p-category" style="width:100%">
-          <option value="wedding">Wedding</option>
-          <option value="corporate">Corporate</option>
-          <option value="birthday">Birthday</option>
-          <option value="other">Other</option>
-        </select>
+        <select id="p-category" style="width:100%"></select>
       </div>
       <div class="field">
-        <label>City</label>
+        <label>City / area</label>
         <input type="text" id="p-city" style="width:100%">
+      </div>
+      <div class="field">
+        <label>District (Kerala)</label>
+        <select id="p-district" style="width:100%"></select>
+      </div>
+      <div class="field">
+        <label>Pincode</label>
+        <input type="text" id="p-pincode" style="width:100%" placeholder="e.g. 682001">
       </div>
       <div class="field">
         <label>Description</label>
@@ -82,6 +85,9 @@
   requireRole("VENDOR");
   renderNav("vendor");
 
+  document.getElementById("p-category").innerHTML = CATEGORIES.map(c => `<option value="${c.value}">${c.label}</option>`).join("") + `<option value="other">Other</option>`;
+  document.getElementById("p-district").innerHTML = `<option value="">Select district</option>` + KERALA_DISTRICTS.map(d => `<option value="${d}">${d}</option>`).join("");
+
   let pendingImageDataUrl = null;
 
   document.getElementById("pkg-image").addEventListener("change", (e) => {
@@ -97,6 +103,8 @@
     document.getElementById("p-name").value = vendor.businessName || "";
     document.getElementById("p-category").value = vendor.category || "other";
     document.getElementById("p-city").value = vendor.city || "";
+    document.getElementById("p-district").value = vendor.district || "";
+    document.getElementById("p-pincode").value = vendor.pincode || "";
     document.getElementById("p-description").value = vendor.description || "";
 
     const banner = document.getElementById("status-banner");
@@ -167,6 +175,8 @@
           businessName: document.getElementById("p-name").value,
           category: document.getElementById("p-category").value,
           city: document.getElementById("p-city").value,
+          district: document.getElementById("p-district").value,
+          pincode: document.getElementById("p-pincode").value,
           description: document.getElementById("p-description").value,
         }),
       });

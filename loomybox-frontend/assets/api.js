@@ -89,12 +89,15 @@ async function renderNav(activePage) {
 
   const searchHtml = activePage === "browse"
     ? "" // homepage renders its own search bar in the hero, avoid duplicating it
-    : `<div class="header-search"><input id="nav-search-input" type="text" placeholder="Search for packages, vendors..."><button onclick="navSearch()">🔍</button></div>`;
+    : `<div class="header-search"><input id="nav-search-input" type="text" placeholder="Search for event services, vendors and more"><button onclick="navSearch()">🔍</button></div>`;
+
+  const vendorPillHtml = (user && user.role === "VENDOR")
+    ? `<a href="vendor-dashboard.html" class="vendor-pill">📦 My Packages</a>`
+    : `<a href="vendor-auth.html" class="vendor-pill">Vendor Login</a>`;
+
+  const locationHtml = renderLocationPicker();
 
   let rightLinks = "";
-  if (user && user.role === "VENDOR") {
-    rightLinks += `<a href="vendor-dashboard.html">📦 My packages</a>`;
-  }
   if (user && user.role === "ADMIN") {
     rightLinks += `<a href="admin.html">⚙️ Admin dashboard</a>`;
   }
@@ -105,20 +108,30 @@ async function renderNav(activePage) {
   }
   rightLinks += user
     ? `<button id="logout-btn">${user.name} · Logout</button>`
-    : `<a href="vendor-auth.html">Become a Vendor</a><a href="customer-auth.html" class="btn-login">Login</a>`;
+    : `<a href="customer-auth.html" class="btn-login">Login</a>`;
 
   nav.innerHTML = `
     <div class="logo-block">
       <a href="index.html" class="logo" id="site-logo">Loomy<span class="logo-accent">box</span></a>
-      <span class="logo-tag">Explore & book</span>
     </div>
+    ${vendorPillHtml}
     ${searchHtml}
+    ${locationHtml}
     <div class="header-actions">${rightLinks}</div>
   `;
 
   const logoutBtn = document.getElementById("logout-btn");
   if (logoutBtn) {
     logoutBtn.onclick = () => { clearSession(); window.location.href = "index.html"; };
+  }
+
+  const locationSelect = document.getElementById("header-location-select");
+  if (locationSelect) {
+    locationSelect.onchange = () => {
+      localStorage.setItem("ek_district", locationSelect.value);
+      // If we're already on the search page, re-run its filter immediately.
+      if (typeof applyDistrictFilter === "function") applyDistrictFilter(locationSelect.value);
+    };
   }
 
   // If the admin has set a custom site name in Settings, swap it in once it loads.
@@ -132,17 +145,55 @@ async function renderNav(activePage) {
   });
 }
 
+// ---- Location picker (Flipkart-style "select location", simplified to a dropdown) ----
+function renderLocationPicker() {
+  const current = localStorage.getItem("ek_district") || "";
+  const options = [`<option value="">All Kerala</option>`]
+    .concat(KERALA_DISTRICTS.map(d => `<option value="${d}" ${d === current ? "selected" : ""}>${d}</option>`))
+    .join("");
+  return `<select class="header-location" id="header-location-select" title="Filter by district">${options}</select>`;
+}
+
 function navSearch() {
   const val = document.getElementById("nav-search-input").value.trim();
-  window.location.href = `index.html${val ? "?search=" + encodeURIComponent(val) : ""}`;
+  const params = new URLSearchParams();
+  if (val) params.set("search", val);
+  window.location.href = `search.html${params.toString() ? "?" + params.toString() : ""}`;
 }
+
+// ---- Categories (single source of truth — used by the homepage icon row,
+// the search page's filter sidebar, and the vendor signup category dropdown) ----
+const CATEGORIES = [
+  { value: "event", label: "Event" },
+  { value: "birthday", label: "Birthday" },
+  { value: "transportation", label: "Transportation" },
+  { value: "corporate", label: "Corporate Event" },
+  { value: "local-event", label: "Local Event" },
+  { value: "photography", label: "Photography" },
+  { value: "gift-hampers", label: "Gift Hampers" },
+  { value: "surprise-gift", label: "Surprise Gift" },
+];
+
+// ---- Kerala districts — used for the location filter ----
+const KERALA_DISTRICTS = [
+  "Thiruvananthapuram", "Kollam", "Pathanamthitta", "Alappuzha", "Kottayam",
+  "Idukki", "Ernakulam", "Thrissur", "Palakkad", "Malappuram",
+  "Kozhikode", "Wayanad", "Kannur", "Kasaragod",
+];
 
 // ---- Category icon illustrations (inline SVG, drawn in-house — no external images) ----
 function categoryIconSvg(category) {
   const icons = {
-    wedding: `<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="17" cy="26" r="9"/><circle cx="31" cy="26" r="9"/><path d="M20 13l4-6 4 6" stroke-linejoin="round"/></svg>`,
-    corporate: `<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="18" width="32" height="20" rx="2"/><path d="M17 18v-4a3 3 0 0 1 3-3h8a3 3 0 0 1 3 3v4"/><path d="M8 27h32"/></svg>`,
+    event: `<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="10" width="32" height="30" rx="3"/><path d="M8 20h32"/><path d="M16 6v8M32 6v8"/></svg>`,
     birthday: `<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M24 12c8 0 14 6 14 14v10H10V26c0-8 6-14 14-14z"/><path d="M24 12V6M18 12c0-3 2-4 2-6M30 12c0-3-2-4-2-6"/><path d="M10 30h28"/></svg>`,
+    transportation: `<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 28l3-10a4 4 0 0 1 4-3h18a4 4 0 0 1 4 3l3 10"/><rect x="6" y="28" width="36" height="8" rx="2"/><circle cx="14" cy="36" r="3"/><circle cx="34" cy="36" r="3"/></svg>`,
+    corporate: `<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="18" width="32" height="20" rx="2"/><path d="M17 18v-4a3 3 0 0 1 3-3h8a3 3 0 0 1 3 3v4"/><path d="M8 27h32"/></svg>`,
+    "local-event": `<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M24 44s14-14 14-24a14 14 0 0 0-28 0c0 10 14 24 14 24z"/><circle cx="24" cy="20" r="5"/></svg>`,
+    photography: `<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="14" width="36" height="24" rx="3"/><path d="M18 14l2-4h8l2 4"/><circle cx="24" cy="26" r="7"/></svg>`,
+    "gift-hampers": `<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="18" width="32" height="22" rx="2"/><path d="M8 26h32"/><path d="M24 18v22"/><path d="M24 18c-4-8-14-6-10 0M24 18c4-8 14-6 10 0"/></svg>`,
+    "surprise-gift": `<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="20" width="32" height="20" rx="2"/><path d="M8 27h32"/><path d="M24 20v20"/><path d="M24 20c-3-7-12-5-9 0M24 20c3-7 12-5 9 0"/><path d="M38 8l1.4 3.2L43 12.6l-3.6 1.4L38 17l-1.4-3.2L33 12.6l3.6-1.4z"/></svg>`,
+    // kept for backward compatibility with packages created before the category list changed
+    wedding: `<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="17" cy="26" r="9"/><circle cx="31" cy="26" r="9"/><path d="M20 13l4-6 4 6" stroke-linejoin="round"/></svg>`,
     other: `<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M24 6l4 12 12 4-12 4-4 12-4-12-12-4 12-4z"/></svg>`,
   };
   return icons[category] || icons.other;
