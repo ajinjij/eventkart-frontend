@@ -17,8 +17,8 @@
 
   <div class="banner">
     <div>
-      <h2>Plan the day. Skip the guesswork.</h2>
-      <p>Compare verified event coordinators and book securely — payment held in escrow until your event is delivered.</p>
+      <h2 id="hero-headline">Plan the day. Skip the guesswork.</h2>
+      <p id="hero-subtext">Compare verified event coordinators and book securely — payment held in escrow until your event is delivered.</p>
     </div>
     <div class="search-bar" style="background:rgba(255,255,255,.15);margin:0">
       <input type="text" id="search-input" placeholder="Search packages, e.g. 'wedding decor'" style="min-width:220px">
@@ -154,7 +154,7 @@
 
   async function addToCart(packageId, btn) {
     const user = getUser();
-    if (!user) { window.location.href = "auth.html"; return; }
+    if (!user) { window.location.href = "customer-auth.html"; return; }
     if (user.role !== "CUSTOMER") { alert("Only customer accounts can add packages to a cart."); return; }
     btn.disabled = true;
     const originalText = btn.textContent;
@@ -177,6 +177,11 @@
   renderNav("browse");
   runSearch();
   loadRecommended();
+
+  loadSiteSettings().then(settings => {
+    if (settings.heroHeadline) document.getElementById("hero-headline").textContent = settings.heroHeadline;
+    if (settings.heroSubtext) document.getElementById("hero-subtext").textContent = settings.heroSubtext;
+  });
 
   async function loadRecommended() {
     const section = document.getElementById("recommended-section");

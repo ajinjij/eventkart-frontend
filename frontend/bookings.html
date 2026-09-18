@@ -65,8 +65,10 @@
           <div class="info">
             <h4>${b.vendor.businessName}</h4>
             <p>${formatMoney(b.totalAmount)} · ${b.eventDate ? new Date(b.eventDate).toLocaleDateString() : "date not set"}</p>
+            ${b.balanceDue > 0 ? `<p style="color:var(--gold);font-weight:600">Balance due: ${formatMoney(b.balanceDue)}</p>` : ""}
           </div>
           <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+            ${b.balanceDue > 0 ? `<button class="btn btn-sm btn-fill" onclick="payBalance(${b.id})">Pay balance</button>` : ""}
             ${b.status === "COMPLETED" && !b.review ? `<button class="btn btn-sm btn-fill" onclick="openReview(${b.id})">Leave a review</button>` : ""}
             ${b.review ? `<span style="font-size:13px;color:var(--ink-soft)">★ ${b.review.rating} reviewed</span>` : ""}
             ${(b.status === "CONFIRMED" || b.status === "COMPLETED") ? `<button class="btn btn-sm btn-outline-danger" onclick="dispute(${b.id})">Report an issue</button>` : ""}
@@ -75,6 +77,16 @@
         ${timelineHtml(b)}
       </div>
     `).join("");
+  }
+
+  async function payBalance(bookingId) {
+    try {
+      await apiFetch(`/bookings/${bookingId}/pay-balance`, { method: "POST" });
+      alert("Balance paid.");
+      loadBookings();
+    } catch (err) {
+      alert(err.message);
+    }
   }
 
   async function openReview(bookingId) {

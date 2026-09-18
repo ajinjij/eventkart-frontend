@@ -129,7 +129,7 @@
 
   async function addToCart(pkgId, btn) {
     const user = getUser();
-    if (!user) { window.location.href = "auth.html"; return; }
+    if (!user) { window.location.href = "customer-auth.html"; return; }
     if (user.role !== "CUSTOMER") { alert("Only customer accounts can add packages to a cart."); return; }
     btn.disabled = true;
     const originalText = btn.textContent;

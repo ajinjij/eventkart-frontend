@@ -5,16 +5,25 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Your cart — eventkart</title>
 <link rel="stylesheet" href="assets/style.css">
+<style>
+  .coupon-row{display:flex;gap:8px;margin-bottom:16px}
+  .coupon-row input{flex:1;text-transform:uppercase}
+  .plan-option{display:flex;align-items:flex-start;gap:8px;border:1px solid var(--line);border-radius:8px;padding:12px;margin-bottom:8px;cursor:pointer}
+  .plan-option.selected{border-color:var(--rose);background:var(--rose-tint)}
+  .plan-option input{margin-top:3px}
+  .plan-option .title{font-weight:600;font-size:13.5px}
+  .plan-option .sub{font-size:12px;color:var(--ink-soft)}
+</style>
 </head>
 <body>
 
 <header><div class="header-inner" id="site-nav"></div></header>
 
 <section class="wrap page">
-    <h1>Your cart</h1>
-    <div id="cart-items"></div>
-    <div id="cart-summary"></div>
-    <div id="checkout-result"></div>
+  <h1>Your cart</h1>
+  <div id="cart-items"></div>
+  <div id="cart-summary"></div>
+  <div id="checkout-result"></div>
 </section>
 
 <script src="assets/api.js"></script>
@@ -23,6 +32,8 @@
   renderNav("cart");
 
   const COMMISSION_RATE = 0.12; // mirrors the backend's default, just for the on-page estimate
+  let appliedCoupon = null; // { code, discountAmount } once validated
+  let selectedPlan = "FULL";
 
   async function loadCart() {
     const cart = await apiFetch("/cart");
@@ -30,7 +41,7 @@
     const summaryEl = document.getElementById("cart-summary");
 
     if (!cart.items.length) {
-      itemsEl.innerHTML = `<div class="empty-state">Your cart is empty. <a href="index.html" style="color:var(--fk-blue)">Browse packages →</a></div>`;
+      itemsEl.innerHTML = `<div class="empty-state">Your cart is empty. <a href="index.html" style="color:var(--rose)">Browse packages →</a></div>`;
       summaryEl.innerHTML = "";
       return;
     }
@@ -52,19 +63,72 @@
       </div>
     `).join("");
 
+    renderSummary(cart);
+  }
+
+  function renderSummary(cart) {
+    const summaryEl = document.getElementById("cart-summary");
     const subtotal = cart.items.reduce((sum, i) => sum + i.package.price, 0);
-    const fee = Number((subtotal * COMMISSION_RATE).toFixed(2));
-    const total = subtotal + fee;
+    const discount = appliedCoupon ? appliedCoupon.discountAmount : 0;
+    const afterDiscount = Math.max(0, subtotal - discount);
+    const fee = Number((afterDiscount * COMMISSION_RATE).toFixed(2));
+    const total = afterDiscount + fee;
+    const payNow = selectedPlan === "SPLIT" ? Number((total / 2).toFixed(2)) : total;
 
     summaryEl.innerHTML = `
-      <div class="cart-summary">
-        <div class="row"><span>Subtotal</span><span>${formatMoney(subtotal)}</span></div>
-        <div class="row"><span>Platform service fee</span><span>${formatMoney(fee)}</span></div>
-        <div class="row total"><span>Total</span><span>${formatMoney(total)}</span></div>
-        <button class="btn btn-fill" style="width:100%;margin-top:14px" onclick="checkout()">Pay ${formatMoney(total)} securely</button>
-        <p style="font-size:12px;color:var(--ink-soft);margin-top:8px">Your payment is held until each vendor delivers the event.</p>
+      <div style="max-width:340px;margin-left:auto">
+
+        <div class="coupon-row">
+          <input type="text" id="coupon-input" placeholder="Have a coupon code?" value="${appliedCoupon ? appliedCoupon.code : ''}">
+          <button class="btn btn-sm" onclick="applyCoupon()">Apply</button>
+        </div>
+        <div id="coupon-msg" style="margin-bottom:12px"></div>
+
+        <p style="font-size:13px;font-weight:600;margin-bottom:8px">Payment plan</p>
+        <div class="plan-option ${selectedPlan === 'FULL' ? 'selected' : ''}" onclick="setPlan('FULL')">
+          <input type="radio" name="plan" ${selectedPlan === 'FULL' ? 'checked' : ''}>
+          <div>
+            <div class="title">Pay in full now</div>
+            <div class="sub">${formatMoney(total)} charged today</div>
+          </div>
+        </div>
+        <div class="plan-option ${selectedPlan === 'SPLIT' ? 'selected' : ''}" onclick="setPlan('SPLIT')">
+          <input type="radio" name="plan" ${selectedPlan === 'SPLIT' ? 'checked' : ''}>
+          <div>
+            <div class="title">Split payment</div>
+            <div class="sub">${formatMoney(payNow)} now, ${formatMoney(total - payNow)} before the event</div>
+          </div>
+        </div>
+
+        <div class="cart-summary" style="margin-top:16px;max-width:none">
+          <div class="row"><span>Subtotal</span><span>${formatMoney(subtotal)}</span></div>
+          ${discount > 0 ? `<div class="row" style="color:var(--green)"><span>Coupon (${appliedCoupon.code})</span><span>-${formatMoney(discount)}</span></div>` : ""}
+          <div class="row"><span>Platform service fee</span><span>${formatMoney(fee)}</span></div>
+          <div class="row total"><span>${selectedPlan === 'SPLIT' ? 'Due today' : 'Total'}</span><span>${formatMoney(payNow)}</span></div>
+          <button class="btn btn-fill" style="width:100%;margin-top:14px" onclick="checkout()">Pay ${formatMoney(payNow)} securely</button>
+          <p style="font-size:12px;color:var(--ink-soft);margin-top:8px">Your payment is held until each vendor delivers the event.</p>
+        </div>
       </div>
     `;
+  }
+
+  function setPlan(plan) {
+    selectedPlan = plan;
+    loadCart();
+  }
+
+  async function applyCoupon() {
+    const code = document.getElementById("coupon-input").value.trim();
+    const msgEl = document.getElementById("coupon-msg");
+    if (!code) return;
+    try {
+      const result = await apiFetch("/cart/preview-coupon", { method: "POST", body: JSON.stringify({ code }) });
+      appliedCoupon = { code: result.code, discountAmount: result.discountAmount };
+      loadCart();
+    } catch (err) {
+      appliedCoupon = null;
+      msgEl.innerHTML = `<span class="error-msg">${err.message}</span>`;
+    }
   }
 
   async function updateDate(itemId, dateValue) {
@@ -86,13 +150,21 @@
 
   async function checkout() {
     try {
-      const result = await apiFetch("/cart/checkout", { method: "POST" });
+      const result = await apiFetch("/cart/checkout", {
+        method: "POST",
+        body: JSON.stringify({
+          couponCode: appliedCoupon ? appliedCoupon.code : undefined,
+          paymentPlan: selectedPlan,
+        }),
+      });
       document.getElementById("checkout-result").innerHTML = `
         <div class="success-msg" style="margin-top:20px;font-size:15px">
-          ✓ ${result.message} — ${formatMoney(result.totalPaid)} paid.
-          <a href="bookings.html" style="color:var(--fk-blue)">View your bookings →</a>
+          ✓ ${result.message} — ${formatMoney(result.totalPaid)} paid${result.paymentPlan === "SPLIT" ? " (balance due before your event)" : ""}.
+          <a href="bookings.html" style="color:var(--rose)">View your bookings →</a>
         </div>
       `;
+      appliedCoupon = null;
+      selectedPlan = "FULL";
       loadCart();
     } catch (err) {
       alert(err.message);

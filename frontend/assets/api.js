@@ -41,10 +41,26 @@ async function apiFetch(path, options = {}) {
   return data;
 }
 
+// ---- Site settings (admin-editable branding/copy) ----
+let _siteSettings = null;
+async function loadSiteSettings() {
+  if (_siteSettings) return _siteSettings;
+  try {
+    _siteSettings = await apiFetch("/settings");
+  } catch (e) {
+    _siteSettings = {};
+  }
+  if (_siteSettings.accentColor) {
+    document.documentElement.style.setProperty("--rose", _siteSettings.accentColor);
+  }
+  return _siteSettings;
+}
+
 // ---- Flipkart-style header, rendered into <div id="site-nav"> ----
 async function renderNav(activePage) {
   const nav = document.getElementById("site-nav");
   if (!nav) return;
+  loadSiteSettings(); // fire and forget - applies accent color as soon as it loads, don't block the nav on it
   const user = getUser();
 
   let cartCount = 0;
@@ -78,7 +94,7 @@ async function renderNav(activePage) {
   }
   rightLinks += user
     ? `<button id="logout-btn">${user.name} · Logout</button>`
-    : `<a href="auth.html" class="btn-login">Login</a>`;
+    : `<a href="vendor-auth.html">Become a Vendor</a><a href="customer-auth.html" class="btn-login">Login</a>`;
 
   nav.innerHTML = `
     <div class="logo-block">
@@ -129,7 +145,7 @@ function priceRowHtml(pkg) {
 // ---- Wishlist toggle, used on product cards across pages ----
 async function toggleWishlist(packageId, heartEl) {
   const user = getUser();
-  if (!user) { window.location.href = "auth.html"; return; }
+  if (!user) { window.location.href = "customer-auth.html"; return; }
   if (user.role !== "CUSTOMER") { alert("Only customer accounts have a wishlist."); return; }
 
   const isActive = heartEl.classList.contains("active");
@@ -147,7 +163,7 @@ async function toggleWishlist(packageId, heartEl) {
 }
 
 // ---- Guards ----
-function requireLogin(redirectTo = "auth.html") {
+function requireLogin(redirectTo = "customer-auth.html") {
   if (!getUser()) { window.location.href = redirectTo; return null; }
   return getUser();
 }

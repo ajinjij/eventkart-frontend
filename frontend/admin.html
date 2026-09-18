@@ -20,6 +20,36 @@
 
   <p class="section-label" style="margin-top:32px">Disputed bookings</p>
   <div id="disputed-bookings"></div>
+
+  <p class="section-label" style="margin-top:32px">Coupons</p>
+  <form id="coupon-form" style="max-width:520px;display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px">
+    <input type="text" id="c-code" placeholder="CODE (e.g. WELCOME10)" required style="text-transform:uppercase">
+    <select id="c-type"><option value="PERCENT">% off</option><option value="FLAT">₹ off</option></select>
+    <input type="number" id="c-value" placeholder="Value (e.g. 10)" required>
+    <input type="number" id="c-min" placeholder="Min order (optional)">
+    <input type="number" id="c-max-uses" placeholder="Max uses (optional)">
+    <input type="date" id="c-expires" placeholder="Expires (optional)">
+    <button class="btn btn-fill" style="grid-column:1/-1" type="submit">Create coupon</button>
+  </form>
+  <div id="coupons-list"></div>
+
+  <p class="section-label" style="margin-top:32px">Site settings</p>
+  <form id="settings-form" style="max-width:520px">
+    <div class="field">
+      <label>Accent color</label>
+      <input type="color" id="s-accent" style="width:80px;padding:4px">
+    </div>
+    <div class="field">
+      <label>Homepage headline</label>
+      <input type="text" id="s-headline" style="width:100%">
+    </div>
+    <div class="field">
+      <label>Homepage subtext</label>
+      <textarea id="s-subtext" rows="2"></textarea>
+    </div>
+    <button class="btn btn-fill" type="submit">Save site settings</button>
+    <span class="success-msg" id="settings-saved"></span>
+  </form>
 </div>
 
 <footer>eventkart · connecting customers with trusted event coordinators</footer>
@@ -114,9 +144,83 @@
     } catch (err) { alert(err.message); }
   }
 
+  async function loadCoupons() {
+    const coupons = await apiFetch("/admin/coupons");
+    const el = document.getElementById("coupons-list");
+    if (!coupons.length) {
+      el.innerHTML = `<div class="empty-state">No coupons yet.</div>`;
+      return;
+    }
+    el.innerHTML = coupons.map(c => `
+      <div class="list-item">
+        <div class="info">
+          <h4>${c.code} ${c.active ? "" : "(inactive)"}</h4>
+          <p>${c.type === "PERCENT" ? c.value + "% off" : formatMoney(c.value) + " off"}
+            ${c.minOrder ? " · min " + formatMoney(c.minOrder) : ""}
+            ${c.maxUses ? ` · ${c.usedCount}/${c.maxUses} used` : ` · ${c.usedCount} used`}
+            ${c.expiresAt ? " · expires " + new Date(c.expiresAt).toLocaleDateString() : ""}</p>
+        </div>
+        <button class="btn btn-sm ${c.active ? "btn-outline-danger" : "btn-fill"}" onclick="toggleCoupon(${c.id}, ${!c.active})">
+          ${c.active ? "Deactivate" : "Activate"}
+        </button>
+      </div>
+    `).join("");
+  }
+
+  document.getElementById("coupon-form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    try {
+      await apiFetch("/admin/coupons", {
+        method: "POST",
+        body: JSON.stringify({
+          code: document.getElementById("c-code").value,
+          type: document.getElementById("c-type").value,
+          value: Number(document.getElementById("c-value").value),
+          minOrder: document.getElementById("c-min").value || undefined,
+          maxUses: document.getElementById("c-max-uses").value || undefined,
+          expiresAt: document.getElementById("c-expires").value || undefined,
+        }),
+      });
+      e.target.reset();
+      loadCoupons();
+    } catch (err) { alert(err.message); }
+  });
+
+  async function toggleCoupon(id, active) {
+    try {
+      await apiFetch(`/admin/coupons/${id}`, { method: "PATCH", body: JSON.stringify({ active }) });
+      loadCoupons();
+    } catch (err) { alert(err.message); }
+  }
+
+  async function loadSettings() {
+    const settings = await apiFetch("/admin/settings");
+    document.getElementById("s-accent").value = settings.accentColor || "#E8607C";
+    document.getElementById("s-headline").value = settings.heroHeadline || "";
+    document.getElementById("s-subtext").value = settings.heroSubtext || "";
+  }
+
+  document.getElementById("settings-form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    try {
+      await apiFetch("/admin/settings", {
+        method: "PUT",
+        body: JSON.stringify({
+          accentColor: document.getElementById("s-accent").value,
+          heroHeadline: document.getElementById("s-headline").value,
+          heroSubtext: document.getElementById("s-subtext").value,
+        }),
+      });
+      document.getElementById("settings-saved").textContent = "Saved ✓ — changes are live on the homepage now.";
+      setTimeout(() => (document.getElementById("settings-saved").textContent = ""), 3000);
+    } catch (err) { alert(err.message); }
+  });
+
   loadStats();
   loadPendingVendors();
   loadDisputes();
+  loadCoupons();
+  loadSettings();
 </script>
 </body>
 </html>
