@@ -26,6 +26,18 @@
     </div>
   </div>
 
+  <div style="text-align:center;margin:14px 0 4px">
+    <a href="plan.html" class="btn btn-blue" style="font-weight:700">✨ Plan my event with AI</a>
+    <p style="font-size:12.5px;color:var(--ink-soft);margin-top:6px">Get a checklist, budget split and matching vendors in one go</p>
+  </div>
+
+  <div class="swiper-wrap" id="photo-swiper" style="display:none">
+    <div class="swiper-track" id="swiper-track"></div>
+    <button class="swiper-arrow prev" id="swiper-prev" aria-label="Previous">&#8249;</button>
+    <button class="swiper-arrow next" id="swiper-next" aria-label="Next">&#8250;</button>
+    <div class="swiper-dots" id="swiper-dots"></div>
+  </div>
+
   <p style="text-align:center;margin:10px 0 24px">
     <a href="search.html" style="color:var(--pink);font-size:13.5px;font-weight:500">Browse all services with filters →</a>
   </p>
@@ -139,6 +151,91 @@
   }
 
   loadRecommended();
+
+  // ---- Swipeable photo carousel ----
+  // Pulls top-rated packages that have a real photo and lets the visitor swipe
+  // (touch drag on mobile, mouse drag on desktop) or use the arrows/dots.
+  async function loadSwiper() {
+    let slides = [];
+    try {
+      const pkgs = await apiFetch("/packages?sort=rating");
+      slides = pkgs.filter(p => p.imageUrl).slice(0, 8);
+    } catch (e) { /* backend unreachable — just skip the carousel */ }
+
+    if (!slides.length) return;
+
+    const wrap = document.getElementById("photo-swiper");
+    const track = document.getElementById("swiper-track");
+    const dotsEl = document.getElementById("swiper-dots");
+    wrap.style.display = "block";
+
+    track.innerHTML = slides.map(pkg => `
+      <div class="swiper-slide" onclick="window.location.href='package.html?id=${pkg.id}'">
+        <img src="${pkg.imageUrl}" alt="${escapeHtml(pkg.name)}" draggable="false">
+        <div class="swiper-caption">
+          <div class="cat">${escapeHtml(pkg.vendor.category)} · ${escapeHtml(pkg.vendor.city)}</div>
+          <h4>${escapeHtml(pkg.name)}</h4>
+          <div class="price">₹${pkg.price.toLocaleString("en-IN")}</div>
+        </div>
+      </div>
+    `).join("");
+
+    dotsEl.innerHTML = slides.map((_, i) => `<button data-i="${i}"></button>`).join("");
+
+    let current = 0;
+    let autoplayTimer = null;
+
+    function goTo(i) {
+      current = (i + slides.length) % slides.length;
+      track.style.transform = `translateX(-${current * 100}%)`;
+      [...dotsEl.children].forEach((d, idx) => d.classList.toggle("active", idx === current));
+    }
+    function next() { goTo(current + 1); }
+    function prev() { goTo(current - 1); }
+
+    function startAutoplay() { autoplayTimer = setInterval(next, 4500); }
+    function stopAutoplay() { clearInterval(autoplayTimer); }
+
+    document.getElementById("swiper-next").addEventListener("click", () => { next(); stopAutoplay(); startAutoplay(); });
+    document.getElementById("swiper-prev").addEventListener("click", () => { prev(); stopAutoplay(); startAutoplay(); });
+    dotsEl.addEventListener("click", (e) => {
+      if (e.target.dataset.i === undefined) return;
+      goTo(Number(e.target.dataset.i)); stopAutoplay(); startAutoplay();
+    });
+
+    // Drag / swipe support (touch + mouse)
+    let startX = 0, deltaX = 0, dragging = false;
+
+    function dragStart(x) { dragging = true; startX = x; deltaX = 0; track.classList.add("dragging"); stopAutoplay(); }
+    function dragMove(x) {
+      if (!dragging) return;
+      deltaX = x - startX;
+      track.style.transform = `translateX(calc(-${current * 100}% + ${deltaX}px))`;
+    }
+    function dragEnd() {
+      if (!dragging) return;
+      dragging = false;
+      track.classList.remove("dragging");
+      const threshold = wrap.offsetWidth * 0.15;
+      if (deltaX < -threshold) next();
+      else if (deltaX > threshold) prev();
+      else goTo(current);
+      startAutoplay();
+    }
+
+    track.addEventListener("touchstart", (e) => dragStart(e.touches[0].clientX), { passive: true });
+    track.addEventListener("touchmove", (e) => dragMove(e.touches[0].clientX), { passive: true });
+    track.addEventListener("touchend", dragEnd);
+
+    track.addEventListener("mousedown", (e) => { e.preventDefault(); dragStart(e.clientX); });
+    window.addEventListener("mousemove", (e) => dragMove(e.clientX));
+    window.addEventListener("mouseup", dragEnd);
+
+    goTo(0);
+    startAutoplay();
+  }
+
+  loadSwiper();
 </script>
 </body>
 </html>

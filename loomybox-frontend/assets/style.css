@@ -96,6 +96,36 @@ header{background:#fff;padding:14px 0;border-bottom:1px solid var(--line);box-sh
 .banner h2{font-size:28px;margin-bottom:10px;color:#fff}
 .banner p{font-size:14.5px;color:rgba(255,255,255,.9);max-width:420px}
 
+/* swipeable photo carousel (homepage) */
+.swiper-wrap{margin:20px 0 8px;position:relative;border-radius:14px;overflow:hidden;background:var(--pink-tint)}
+.swiper-track{display:flex;touch-action:pan-y;cursor:grab;transition:transform .4s cubic-bezier(.22,.61,.36,1)}
+.swiper-track.dragging{transition:none;cursor:grabbing}
+.swiper-slide{flex:0 0 100%;position:relative;height:280px;background:var(--pink-tint)}
+.swiper-slide img{width:100%;height:100%;object-fit:cover;display:block;pointer-events:none;user-select:none}
+.swiper-caption{
+  position:absolute;left:0;right:0;bottom:0;padding:22px 28px 18px;
+  background:linear-gradient(0deg,rgba(0,0,0,.62),rgba(0,0,0,0));color:#fff;
+}
+.swiper-caption .cat{font-size:11px;text-transform:uppercase;letter-spacing:.05em;font-weight:600;opacity:.85}
+.swiper-caption h4{color:#fff;font-size:18px;margin:4px 0 2px}
+.swiper-caption .price{font-size:13.5px;font-weight:600;color:var(--gold-tint)}
+.swiper-arrow{
+  position:absolute;top:50%;transform:translateY(-50%);width:38px;height:38px;border-radius:50%;
+  background:rgba(255,255,255,.85);border:none;display:flex;align-items:center;justify-content:center;
+  cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.15);color:var(--ink);font-size:16px;z-index:2;transition:background .15s;
+}
+.swiper-arrow:hover{background:#fff}
+.swiper-arrow.prev{left:12px}
+.swiper-arrow.next{right:12px}
+.swiper-dots{position:absolute;bottom:10px;right:16px;display:flex;gap:6px;z-index:2}
+.swiper-dots button{width:7px;height:7px;border-radius:50%;border:none;background:rgba(255,255,255,.55);cursor:pointer;padding:0}
+.swiper-dots button.active{background:#fff;width:18px;border-radius:4px}
+@media (max-width:640px){
+  .swiper-slide{height:190px}
+  .swiper-arrow{width:32px;height:32px}
+  .swiper-caption h4{font-size:15px}
+}
+
 /* homepage sections (admin-built) */
 .home-section{margin:32px 0}
 .home-section h3{font-size:20px;margin-bottom:8px}

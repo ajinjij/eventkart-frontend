@@ -61,6 +61,9 @@
   }
 
   function redirectAfterAuth(user) {
+    const params = new URLSearchParams(window.location.search);
+    const next = params.get("next");
+    if (next && user.role === "CUSTOMER") { window.location.href = next; return; }
     if (user.role === "ADMIN") window.location.href = "admin.html";
     else if (user.role === "VENDOR") window.location.href = "vendor-dashboard.html"; // in case an existing vendor signs in here
     else window.location.href = "index.html";
