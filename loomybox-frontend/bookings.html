@@ -13,6 +13,10 @@
 <div class="wrap page">
   <h1>My Orders</h1>
   <div id="bookings-list"></div>
+
+  <p class="section-label" style="margin-top:40px">My requirements &amp; quotes</p>
+  <p style="font-size:13px;color:var(--ink-soft);margin-bottom:12px">Custom requests you've posted — compare quotes from vendors and accept the one you like.</p>
+  <div id="requirements-list"></div>
 </div>
 
 <footer>Loomybox.com · connecting customers with trusted event coordinators</footer>
@@ -113,6 +117,56 @@
   }
 
   loadBookings();
+  loadRequirements();
+
+  // ---- My Requirements: quote comparison + accept ----
+  async function loadRequirements() {
+    const el = document.getElementById("requirements-list");
+    const requirements = await apiFetch("/requirements/mine");
+    if (!requirements.length) {
+      el.innerHTML = `<div class="empty-state">No requirements posted yet. <a href="plan.html" style="color:var(--pink)">Plan my event with AI →</a></div>`;
+      return;
+    }
+    el.innerHTML = requirements.map(r => `
+      <div class="requirement-card">
+        <div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px">
+          <div>
+            <h4 style="font-size:15px">${escapeHtml(r.eventType)} in ${escapeHtml(r.city)}</h4>
+            <p style="font-size:12.5px;color:var(--ink-soft)">
+              ${r.guestCount ? r.guestCount + " guests · " : ""}Event date ${new Date(r.eventDate).toLocaleDateString()} ·
+              ${r.servicesNeeded ? escapeHtml(r.servicesNeeded) : "General"}
+            </p>
+          </div>
+          <span class="badge ${r.status === "OPEN" ? "pending" : r.status === "BOOKED" ? "confirmed" : "cancelled"}">${r.status}</span>
+        </div>
+        ${r.quotes.length === 0
+          ? `<p style="font-size:12.5px;color:var(--ink-soft);margin-top:10px">No quotes yet — vendors in your area will respond soon.</p>`
+          : `<div class="quote-compare-row">${r.quotes.map(q => `
+              <div class="quote-card ${q.status === "ACCEPTED" ? "accepted" : ""}">
+                <div class="qprice">${formatMoney(q.price)}</div>
+                ${q.message ? `<p style="font-size:12.5px;margin:6px 0">${escapeHtml(q.message)}</p>` : ""}
+                <p style="font-size:11px;color:var(--ink-soft)">${q.status}</p>
+                <div style="display:flex;gap:6px;margin-top:8px">
+                  ${q.status === "PENDING" ? `<button class="btn btn-sm btn-fill" style="flex:1" onclick="acceptQuote(${q.id})">Accept</button>` : ""}
+                  <button class="btn btn-sm" style="flex:1" onclick="window.location.href='messages.html?with=${q.vendorId}'">Message</button>
+                </div>
+              </div>
+            `).join("")}</div>`}
+      </div>
+    `).join("");
+  }
+
+  async function acceptQuote(quoteId) {
+    if (!confirm("Accept this quote? This will create a booking and reject the other quotes on this requirement.")) return;
+    try {
+      await apiFetch(`/quotes/${quoteId}/accept`, { method: "POST" });
+      alert("Quote accepted — head to My Orders to pay and confirm.");
+      loadRequirements();
+      loadBookings();
+    } catch (err) {
+      alert(err.message);
+    }
+  }
 </script>
 </body>
 </html>

@@ -34,6 +34,12 @@
       </div>
 
       <div class="filter-group">
+        <div class="group-title">Event date</div>
+        <input type="date" id="date-filter-input" style="width:100%" onchange="setEventDate(this.value)">
+        <p style="font-size:11px;color:var(--ink-soft);margin-top:4px">Hides vendors already booked that day</p>
+      </div>
+
+      <div class="filter-group">
         <div class="group-title">Price range</div>
         <label class="filter-option"><input type="radio" name="price" onclick="setPrice(0,0)" checked> Any price</label>
         <label class="filter-option"><input type="radio" name="price" onclick="setPrice(0,50000)"> Under ₹50,000</label>
@@ -81,6 +87,7 @@
   let minRating = 0;
   let activeDistrict = localStorage.getItem("ek_district") || "";
   let activePincode = "";
+  let activeEventDate = "";
 
   // Called by the header's location dropdown (see api.js renderLocationPicker) if it's
   // changed while already on this page, so both pickers stay in sync.
@@ -119,6 +126,10 @@
           <div class="cat">${pkg.vendor.category} · ${pkg.vendor.city}</div>
           <h4>${pkg.name}</h4>
           <span class="rating-badge">★ ${pkg.vendor.rating.toFixed(1)}</span>
+          <div class="trust-row" style="margin:4px 0">
+            <span class="trust-chip verified">✓ Verified</span>
+            <span class="trust-chip">${pkg.vendor.completedBookingsCount} done</span>
+          </div>
           ${priceRowHtml(pkg)}
           <div class="desc">${pkg.description || pkg.vendor.businessName}</div>
           <button class="btn btn-fill" style="width:100%" onclick="event.stopPropagation(); addToCart(${pkg.id}, this)">Add to cart</button>
@@ -135,6 +146,7 @@
     if (activeCategory) params.set("category", activeCategory);
     if (activeDistrict) params.set("district", activeDistrict);
     if (activePincode) params.set("pincode", activePincode);
+    if (activeEventDate) params.set("availableOn", activeEventDate);
     if (priceMin) params.set("minPrice", priceMin);
     if (priceMax) params.set("maxPrice", priceMax);
     if (minRating) params.set("minRating", minRating);
@@ -152,6 +164,7 @@
   function setCategory(cat) { activeCategory = cat; runSearch(); }
   function setDistrict(d) { activeDistrict = d; localStorage.setItem("ek_district", d); runSearch(); }
   function setPincode(p) { activePincode = p.trim(); runSearch(); }
+  function setEventDate(d) { activeEventDate = d; runSearch(); }
   function setPrice(min, max) { priceMin = min; priceMax = max; runSearch(); }
   function setRating(r) { minRating = r; runSearch(); }
 

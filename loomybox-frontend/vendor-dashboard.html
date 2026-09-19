@@ -13,6 +13,7 @@
 <section class="page">
   <div class="wrap">
     <h1>Vendor dashboard</h1>
+    <p style="margin:-6px 0 16px"><a href="messages.html" style="color:var(--pink);font-size:13.5px;font-weight:500">💬 Messages with customers →</a></p>
 
     <div id="status-banner"></div>
 
@@ -75,6 +76,19 @@
     <p class="section-label">Your packages</p>
     <div class="grid" id="packages-grid"></div>
 
+    <p class="section-label" style="margin-top:40px">Availability calendar</p>
+    <p style="font-size:13px;color:var(--ink-soft);margin-bottom:10px">Block dates you're already committed elsewhere — customers won't see these dates as available when planning around you.</p>
+    <div class="avail-form">
+      <input type="date" id="avail-date" style="flex:1">
+      <input type="text" id="avail-reason" placeholder="Reason (optional)" style="flex:1">
+      <button class="btn btn-sm btn-fill" onclick="addBlockedDate()">Block date</button>
+    </div>
+    <div class="avail-list" id="avail-list"></div>
+
+    <p class="section-label" style="margin-top:40px">Open requirements you can quote</p>
+    <p style="font-size:13px;color:var(--ink-soft);margin-bottom:10px">Customers in your city and category looking for custom quotes.</p>
+    <div id="open-requirements"></div>
+
     <p class="section-label" style="margin-top:40px">Recent bookings</p>
     <div id="bookings-list"></div>
   </div>
@@ -98,8 +112,11 @@
     reader.readAsDataURL(file);
   });
 
+  let myVendorId = null;
+
   async function loadProfile() {
     const vendor = await apiFetch("/vendors/me/profile");
+    myVendorId = vendor.id;
     document.getElementById("p-name").value = vendor.businessName || "";
     document.getElementById("p-category").value = vendor.category || "other";
     document.getElementById("p-city").value = vendor.city || "";
@@ -109,13 +126,37 @@
 
     const banner = document.getElementById("status-banner");
     if (vendor.status === "PENDING") {
-      banner.innerHTML = `<div class="badge pending">Pending approval</div><p style="margin-top:8px;color:var(--ink-soft);font-size:13px">Your account is awaiting admin approval. You can still add packages now — they'll go live to customers once you're approved.</p>`;
+      const steps = [
+        { done: !!vendor.description, label: "Add a business description" },
+        { done: !!vendor.district, label: "Set your district for local search" },
+        { done: vendor.packages.length > 0, label: "Add at least one package" },
+        { done: vendor.packages.some(p => p.imageUrl), label: "Add a photo to a package" },
+      ];
+      banner.innerHTML = `
+        <div class="badge pending">Pending approval</div>
+        <p style="margin-top:8px;color:var(--ink-soft);font-size:13px">Your account is awaiting admin approval. Complete these while you wait — a fuller profile gets approved and booked faster:</p>
+        <div class="onboard-checklist">
+          ${steps.map(s => `<div class="onboard-item ${s.done ? "done" : ""}"><span class="tick">${s.done ? "✓" : ""}</span>${s.label}</div>`).join("")}
+        </div>
+      `;
     } else if (vendor.status === "REJECTED") {
       banner.innerHTML = `<div class="badge cancelled">Not approved</div>`;
     } else {
-      banner.innerHTML = `<div class="badge confirmed">Approved · ★ ${vendor.rating.toFixed(1)} (${vendor.reviewCount} reviews)</div>`;
+      const avgResponse = vendor.respondedQuoteCount > 0
+        ? Math.round(vendor.totalResponseMinutes / vendor.respondedQuoteCount)
+        : null;
+      banner.innerHTML = `
+        <div class="badge confirmed">Approved · ★ ${vendor.rating.toFixed(1)} (${vendor.reviewCount} reviews)</div>
+        <div class="trust-row">
+          <span class="trust-chip verified">✓ Verified vendor</span>
+          ${avgResponse != null ? `<span class="trust-chip">Usually replies in ${avgResponse < 60 ? avgResponse + " min" : Math.round(avgResponse / 60) + " hr"}</span>` : ""}
+          <span class="trust-chip">${vendor.completedBookingsCount} completed booking${vendor.completedBookingsCount === 1 ? "" : "s"}</span>
+        </div>
+      `;
     }
     renderPackages(vendor.packages, vendor.category);
+    loadAvailability();
+    loadOpenRequirements(vendor.category, vendor.city);
   }
 
   function renderPackages(packages, category) {
@@ -131,6 +172,11 @@
           <h4>${pkg.name}</h4>
           <div class="desc">${pkg.description || ""}</div>
           ${priceRowHtml(pkg)}
+          <div class="mini-gallery" id="gallery-${pkg.id}">Loading photos…</div>
+          <div style="display:flex;gap:6px;margin:8px 0">
+            <input type="file" id="gallery-input-${pkg.id}" accept="image/*" style="font-size:11px;flex:1">
+            <button class="btn btn-sm" onclick="addGalleryPhoto(${pkg.id})">+ Photo</button>
+          </div>
           <div style="display:flex;gap:8px">
             <button class="btn btn-sm" style="flex:1" onclick="editPrice(${pkg.id}, ${pkg.price}, ${pkg.originalPrice || 0})">Edit price</button>
             <button class="btn btn-sm btn-outline-danger" style="flex:1" onclick="deletePackage(${pkg.id})">Delete</button>
@@ -138,6 +184,123 @@
         </div>
       </div>
     `).join("");
+    packages.forEach(pkg => loadGallery(pkg.id));
+  }
+
+  // ---- Package photo gallery (beyond the single cover image) ----
+  async function loadGallery(packageId) {
+    try {
+      const pkg = await apiFetch(`/packages/${packageId}`);
+      const el = document.getElementById(`gallery-${packageId}`);
+      if (!el) return;
+      if (!pkg.images.length) { el.innerHTML = `<span style="font-size:11.5px;color:var(--ink-soft)">No extra photos yet</span>`; return; }
+      el.innerHTML = pkg.images.map(img => `
+        <div class="thumb-wrap">
+          <img src="${img.imageUrl}" alt="">
+          <button class="thumb-remove" onclick="removeGalleryPhoto(${packageId}, ${img.id})">×</button>
+        </div>
+      `).join("");
+    } catch (e) { /* package might be pending-approval-invisible; ignore */ }
+  }
+
+  function addGalleryPhoto(packageId) {
+    const input = document.getElementById(`gallery-input-${packageId}`);
+    const file = input.files[0];
+    if (!file) { alert("Choose a photo first"); return; }
+    const reader = new FileReader();
+    reader.onload = async () => {
+      try {
+        await apiFetch(`/vendors/me/packages/${packageId}/images`, { method: "POST", body: JSON.stringify({ imageUrl: reader.result }) });
+        input.value = "";
+        loadGallery(packageId);
+      } catch (err) { alert(err.message); }
+    };
+    reader.readAsDataURL(file);
+  }
+
+  async function removeGalleryPhoto(packageId, imageId) {
+    try {
+      await apiFetch(`/vendors/me/packages/${packageId}/images/${imageId}`, { method: "DELETE" });
+      loadGallery(packageId);
+    } catch (err) { alert(err.message); }
+  }
+
+  // ---- Availability calendar (blocked dates) ----
+  async function loadAvailability() {
+    if (!myVendorId) return;
+    const dates = await apiFetch(`/vendors/${myVendorId}/availability`);
+    const el = document.getElementById("avail-list");
+    if (!dates.length) { el.innerHTML = `<span style="font-size:12.5px;color:var(--ink-soft)">No dates blocked — you appear available every day.</span>`; return; }
+    el.innerHTML = dates.map(d => `
+      <div class="avail-chip">
+        ${new Date(d.date).toLocaleDateString()} ${d.reason ? "· " + escapeHtml(d.reason) : ""}
+        <button onclick="removeBlockedDate(${d.id})">×</button>
+      </div>
+    `).join("");
+  }
+
+  async function addBlockedDate() {
+    const date = document.getElementById("avail-date").value;
+    const reason = document.getElementById("avail-reason").value.trim();
+    if (!date) { alert("Pick a date first"); return; }
+    try {
+      await apiFetch("/vendors/me/availability", { method: "POST", body: JSON.stringify({ date, reason: reason || undefined }) });
+      document.getElementById("avail-date").value = "";
+      document.getElementById("avail-reason").value = "";
+      loadAvailability();
+    } catch (err) { alert(err.message); }
+  }
+
+  async function removeBlockedDate(id) {
+    try {
+      await apiFetch(`/vendors/me/availability/${id}`, { method: "DELETE" });
+      loadAvailability();
+    } catch (err) { alert(err.message); }
+  }
+
+  // ---- Open requirements this vendor can quote on ----
+  async function loadOpenRequirements() {
+    const el = document.getElementById("open-requirements");
+    try {
+      const requirements = await apiFetch("/requirements/open");
+      if (!requirements.length) {
+        el.innerHTML = `<div class="empty-state">No open requirements matching your category/city right now.</div>`;
+        return;
+      }
+      el.innerHTML = requirements.map(r => `
+        <div class="requirement-card">
+          <div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:10px">
+            <div>
+              <h4 style="font-size:14.5px;font-weight:600">${escapeHtml(r.eventType)} in ${escapeHtml(r.city)}</h4>
+              <p style="font-size:12.5px;color:var(--ink-soft)">
+                ${r.guestCount ? r.guestCount + " guests · " : ""}${r.budgetMin || r.budgetMax ? `Budget ₹${(r.budgetMin || 0).toLocaleString("en-IN")}–₹${(r.budgetMax || 0).toLocaleString("en-IN")}` : "Budget not specified"}
+                · Event date ${new Date(r.eventDate).toLocaleDateString()}
+              </p>
+              ${r.servicesNeeded ? `<p style="font-size:12.5px;margin-top:4px">Needs: ${escapeHtml(r.servicesNeeded)}</p>` : ""}
+              ${r.notes ? `<p style="font-size:12.5px;color:var(--ink-soft);margin-top:4px">"${escapeHtml(r.notes)}"</p>` : ""}
+            </div>
+          </div>
+          <div style="display:flex;gap:8px;margin-top:10px">
+            <input type="number" id="quote-price-${r.id}" placeholder="Your price (₹)" style="flex:1">
+            <input type="text" id="quote-msg-${r.id}" placeholder="Message (optional)" style="flex:2">
+            <button class="btn btn-sm btn-fill" onclick="sendQuote(${r.id})">Send quote</button>
+          </div>
+        </div>
+      `).join("");
+    } catch (err) {
+      el.innerHTML = `<div class="empty-state">${err.message}</div>`;
+    }
+  }
+
+  async function sendQuote(requirementId) {
+    const price = document.getElementById(`quote-price-${requirementId}`).value;
+    const message = document.getElementById(`quote-msg-${requirementId}`).value.trim();
+    if (!price) { alert("Enter a price for your quote"); return; }
+    try {
+      await apiFetch("/quotes", { method: "POST", body: JSON.stringify({ requirementId, price: Number(price), message: message || undefined }) });
+      alert("Quote sent!");
+      loadOpenRequirements();
+    } catch (err) { alert(err.message); }
   }
 
   async function editPrice(packageId, currentPrice, currentOriginal) {

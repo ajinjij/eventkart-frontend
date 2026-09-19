@@ -46,24 +46,56 @@
       return;
     }
 
-    itemsEl.innerHTML = cart.items.map(item => `
-      <div class="list-item">
-        <div class="info">
-          <h4>${item.package.name}</h4>
-          <p>${item.package.vendor.businessName} · ${item.package.vendor.city}</p>
-          <div class="field" style="margin-top:8px">
-            <label>Event date</label>
-            <input type="date" value="${item.eventDate ? item.eventDate.slice(0,10) : ''}" onchange="updateDate(${item.id}, this.value)">
+    // Group items by vendor so it's clear which services come from which
+    // vendor — each group still checks out together in one payment, but
+    // settles to its own vendor on the backend.
+    const groups = {};
+    for (const item of cart.items) {
+      const key = item.package.vendor.id;
+      if (!groups[key]) groups[key] = { vendor: item.package.vendor, items: [] };
+      groups[key].items.push(item);
+    }
+
+    itemsEl.innerHTML = Object.values(groups).map(group => `
+      <div style="margin-bottom:18px">
+        <p style="font-size:12.5px;font-weight:700;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.03em;margin-bottom:8px">
+          ${escapeHtml(group.vendor.businessName)} · ${escapeHtml(group.vendor.city)}
+        </p>
+        ${group.items.map(item => `
+          <div class="list-item">
+            <div class="info">
+              <h4>${escapeHtml(item.package.name)}</h4>
+              <div class="field" style="margin-top:8px">
+                <label>Event date</label>
+                <input type="date" value="${item.eventDate ? item.eventDate.slice(0,10) : ''}" onchange="updateDate(${item.id}, this.value, ${group.vendor.id})">
+                <div class="error-msg" id="date-warning-${item.id}" style="margin-top:4px"></div>
+              </div>
+            </div>
+            <div style="display:flex;align-items:center;gap:16px">
+              <span class="price" style="font-weight:600">${formatMoney(item.package.price)}</span>
+              <button class="btn btn-sm btn-outline-danger" onclick="removeItem(${item.id})">Remove</button>
+            </div>
           </div>
-        </div>
-        <div style="display:flex;align-items:center;gap:16px">
-          <span class="price" style="font-weight:600">${formatMoney(item.package.price)}</span>
-          <button class="btn btn-sm btn-outline-danger" onclick="removeItem(${item.id})">Remove</button>
-        </div>
+        `).join("")}
       </div>
     `).join("");
 
     renderSummary(cart);
+  }
+
+  // Warns (doesn't block) if the chosen date is one the vendor has already blocked.
+  async function updateDate(itemId, dateValue, vendorId) {
+    try {
+      await apiFetch(`/cart/items/${itemId}`, { method: "PUT", body: JSON.stringify({ eventDate: dateValue }) });
+      const warningEl = document.getElementById(`date-warning-${itemId}`);
+      if (warningEl && dateValue) {
+        const blockedDates = await apiFetch(`/vendors/${vendorId}/availability`);
+        const isBlocked = blockedDates.some(d => d.date.slice(0, 10) === dateValue);
+        warningEl.textContent = isBlocked ? "⚠ This vendor has marked this date unavailable — message them before relying on it." : "";
+      }
+    } catch (err) {
+      alert(err.message);
+    }
   }
 
   function renderSummary(cart) {
@@ -128,14 +160,6 @@
     } catch (err) {
       appliedCoupon = null;
       msgEl.innerHTML = `<span class="error-msg">${err.message}</span>`;
-    }
-  }
-
-  async function updateDate(itemId, dateValue) {
-    try {
-      await apiFetch(`/cart/items/${itemId}`, { method: "PUT", body: JSON.stringify({ eventDate: dateValue }) });
-    } catch (err) {
-      alert(err.message);
     }
   }
 

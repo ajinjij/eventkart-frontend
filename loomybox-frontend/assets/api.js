@@ -244,3 +244,148 @@ function requireRole(role, redirectTo = "index.html") {
   if (!user || user.role !== role) { window.location.href = redirectTo; return null; }
   return user;
 }
+
+// ==========================================================================
+// Notification bell + AI support chat widget — injected automatically into
+// every page that loads this script, so no per-page markup is needed.
+// ==========================================================================
+
+async function renderNotificationBell() {
+  const user = getUser();
+  if (!user) return;
+
+  const actions = document.querySelector(".header-actions");
+  if (!actions || document.getElementById("notif-bell")) return;
+
+  const bell = document.createElement("div");
+  bell.id = "notif-bell";
+  bell.style.cssText = "position:relative;display:inline-block;cursor:pointer;margin-right:6px";
+  bell.innerHTML = `🔔<span id="notif-count" class="count" style="display:none"></span>`;
+  actions.prepend(bell);
+
+  const panel = document.createElement("div");
+  panel.id = "notif-panel";
+  panel.style.cssText = "display:none;position:absolute;top:38px;right:0;width:320px;max-height:400px;overflow-y:auto;background:var(--card);border:1px solid var(--line);border-radius:10px;box-shadow:0 8px 28px rgba(0,0,0,.12);z-index:50";
+  bell.appendChild(panel);
+
+  async function refreshCount() {
+    try {
+      const { count } = await apiFetch("/notifications/unread-count");
+      const el = document.getElementById("notif-count");
+      if (count > 0) { el.textContent = count; el.style.display = "inline-block"; }
+      else { el.style.display = "none"; }
+    } catch (e) { /* not logged in yet or backend unreachable */ }
+  }
+
+  async function loadPanel() {
+    panel.innerHTML = `<div style="padding:14px;font-size:13px;color:var(--ink-soft)">Loading…</div>`;
+    try {
+      const notifs = await apiFetch("/notifications");
+      if (!notifs.length) {
+        panel.innerHTML = `<div style="padding:16px;font-size:13px;color:var(--ink-soft);text-align:center">No notifications yet</div>`;
+        return;
+      }
+      panel.innerHTML = notifs.map(n => `
+        <div class="notif-item" data-id="${n.id}" data-link="${n.link || ""}" style="padding:11px 14px;border-bottom:1px solid var(--line);font-size:13px;cursor:pointer;${n.read ? "opacity:.6" : "background:var(--pink-tint)"}">
+          ${escapeHtml(n.message)}
+          <div style="font-size:11px;color:var(--ink-soft);margin-top:3px">${new Date(n.createdAt).toLocaleString()}</div>
+        </div>
+      `).join("");
+      panel.querySelectorAll(".notif-item").forEach(item => {
+        item.addEventListener("click", async () => {
+          try { await apiFetch(`/notifications/${item.dataset.id}/read`, { method: "POST" }); } catch (e) {}
+          if (item.dataset.link) window.location.href = item.dataset.link;
+          refreshCount();
+        });
+      });
+    } catch (e) {
+      panel.innerHTML = `<div style="padding:14px;font-size:13px;color:var(--ink-soft)">Couldn't load notifications</div>`;
+    }
+  }
+
+  bell.addEventListener("click", (e) => {
+    e.stopPropagation();
+    const isOpen = panel.style.display === "block";
+    panel.style.display = isOpen ? "none" : "block";
+    if (!isOpen) loadPanel();
+  });
+  document.addEventListener("click", () => { panel.style.display = "none"; });
+
+  refreshCount();
+  setInterval(refreshCount, 30000); // light polling — good enough without websockets
+}
+
+function renderSupportWidget() {
+  if (document.getElementById("support-widget-btn")) return;
+
+  const btn = document.createElement("button");
+  btn.id = "support-widget-btn";
+  btn.textContent = "💬";
+  btn.title = "Chat with support";
+  btn.style.cssText = "position:fixed;bottom:22px;right:22px;width:52px;height:52px;border-radius:50%;background:var(--pink);color:#fff;border:none;font-size:22px;cursor:pointer;box-shadow:0 6px 18px rgba(0,0,0,.2);z-index:100";
+  document.body.appendChild(btn);
+
+  const panel = document.createElement("div");
+  panel.id = "support-widget-panel";
+  panel.style.cssText = "display:none;position:fixed;bottom:84px;right:22px;width:320px;max-height:440px;background:var(--card);border:1px solid var(--line);border-radius:14px;box-shadow:0 10px 30px rgba(0,0,0,.18);z-index:100;flex-direction:column;overflow:hidden";
+  panel.innerHTML = `
+    <div style="background:var(--pink);color:#fff;padding:12px 14px;font-weight:600;font-size:14px">Loomybox Support</div>
+    <div id="support-msgs" style="flex:1;overflow-y:auto;padding:12px;font-size:13px;display:flex;flex-direction:column;gap:8px;max-height:300px"></div>
+    <div style="display:flex;border-top:1px solid var(--line)">
+      <input id="support-input" type="text" placeholder="Ask a question…" style="flex:1;border:none;padding:10px 12px;font-size:13px;outline:none">
+      <button id="support-send" style="border:none;background:var(--pink);color:#fff;padding:0 16px;cursor:pointer">Send</button>
+    </div>
+  `;
+  document.body.appendChild(panel);
+
+  const history = [];
+  function addBubble(role, text) {
+    const el = document.createElement("div");
+    el.style.cssText = role === "user"
+      ? "align-self:flex-end;background:var(--pink);color:#fff;padding:8px 12px;border-radius:12px 12px 2px 12px;max-width:85%"
+      : "align-self:flex-start;background:var(--pink-tint);padding:8px 12px;border-radius:12px 12px 12px 2px;max-width:85%";
+    el.textContent = text;
+    document.getElementById("support-msgs").appendChild(el);
+    document.getElementById("support-msgs").scrollTop = 9999;
+  }
+
+  btn.addEventListener("click", () => {
+    const isOpen = panel.style.display === "flex";
+    panel.style.display = isOpen ? "none" : "flex";
+    if (!isOpen && !history.length) {
+      addBubble("assistant", "Hi! I can answer questions about how booking, payments and escrow work on Loomybox. What's up?");
+    }
+  });
+
+  async function send() {
+    const input = document.getElementById("support-input");
+    const text = input.value.trim();
+    if (!text) return;
+    input.value = "";
+    addBubble("user", text);
+    history.push({ role: "user", content: text });
+    const thinking = document.createElement("div");
+    thinking.id = "support-thinking";
+    thinking.style.cssText = "align-self:flex-start;color:var(--ink-soft);font-size:12px";
+    thinking.textContent = "Typing…";
+    document.getElementById("support-msgs").appendChild(thinking);
+
+    try {
+      const { reply } = await apiFetch("/assistant/support", { method: "POST", body: JSON.stringify({ message: text, history }) });
+      thinking.remove();
+      addBubble("assistant", reply);
+      history.push({ role: "assistant", content: reply });
+    } catch (err) {
+      thinking.remove();
+      addBubble("assistant", "Sorry, I'm having trouble right now — please try again in a moment.");
+    }
+  }
+  document.getElementById("support-send").addEventListener("click", send);
+  document.getElementById("support-input").addEventListener("keydown", (e) => { if (e.key === "Enter") send(); });
+}
+
+// Auto-inject on every page once the DOM (and renderNav, which builds
+// .header-actions) has had a chance to run.
+document.addEventListener("DOMContentLoaded", () => {
+  setTimeout(() => { renderNotificationBell(); renderSupportWidget(); }, 300);
+});

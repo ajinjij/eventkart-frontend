@@ -226,3 +226,62 @@ footer{padding:26px;text-align:center;font-size:12.5px;color:var(--ink-soft);bac
   .header-search{order:3;width:100%}
   .banner{padding:30px 26px}
 }
+
+/* ---- trust signals (verified badge, response time, completed count) ---- */
+.trust-row{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0}
+.trust-chip{font-size:11px;padding:3px 9px;border-radius:12px;background:var(--pink-tint);color:var(--pink);font-weight:600}
+.trust-chip.verified{background:var(--green-tint);color:var(--green)}
+
+/* ---- photo gallery (package detail + vendor dashboard) ---- */
+.gallery-main{border-radius:14px;overflow:hidden;background:var(--pink-tint);height:380px;display:flex;align-items:center;justify-content:center;font-size:64px}
+.gallery-main img{width:100%;height:100%;object-fit:cover;cursor:zoom-in}
+.gallery-thumbs{display:flex;gap:8px;margin-top:8px;overflow-x:auto}
+.gallery-thumbs img{width:64px;height:64px;object-fit:cover;border-radius:8px;cursor:pointer;border:2px solid transparent;flex:0 0 auto}
+.gallery-thumbs img.active{border-color:var(--pink)}
+.mini-gallery{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+.mini-gallery .thumb-wrap{position:relative}
+.mini-gallery img{width:52px;height:52px;object-fit:cover;border-radius:6px}
+.mini-gallery .thumb-remove{position:absolute;top:-6px;right:-6px;width:18px;height:18px;border-radius:50%;background:var(--red);color:#fff;border:none;font-size:11px;line-height:18px;cursor:pointer;padding:0}
+
+/* ---- vendor availability calendar (simple date-list manager) ---- */
+.avail-form{display:flex;gap:8px;max-width:360px;margin-bottom:12px}
+.avail-list{display:flex;flex-wrap:wrap;gap:8px}
+.avail-chip{display:flex;align-items:center;gap:6px;font-size:12.5px;background:var(--card);border:1px solid var(--line);border-radius:8px;padding:6px 10px}
+.avail-chip button{border:none;background:none;color:var(--red);cursor:pointer;font-size:13px;padding:0}
+
+/* ---- messaging ---- */
+.msg-layout{display:grid;grid-template-columns:280px 1fr;gap:0;border:1px solid var(--line);border-radius:12px;overflow:hidden;height:560px}
+.msg-convo-list{border-right:1px solid var(--line);overflow-y:auto;background:var(--pink-tint)}
+.msg-convo-item{padding:14px 16px;border-bottom:1px solid var(--line);cursor:pointer}
+.msg-convo-item:hover, .msg-convo-item.active{background:var(--card)}
+.msg-convo-item h5{font-size:13.5px;margin-bottom:3px}
+.msg-convo-item p{font-size:12px;color:var(--ink-soft);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.msg-thread{display:flex;flex-direction:column;height:100%}
+.msg-thread-body{flex:1;overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:10px}
+.msg-bubble{max-width:70%;padding:9px 13px;border-radius:14px;font-size:13.5px}
+.msg-bubble.mine{align-self:flex-end;background:var(--pink);color:#fff;border-bottom-right-radius:3px}
+.msg-bubble.theirs{align-self:flex-start;background:var(--pink-tint);border-bottom-left-radius:3px}
+.msg-bubble .time{font-size:10px;opacity:.7;margin-top:3px;display:block}
+.msg-composer{display:flex;border-top:1px solid var(--line)}
+.msg-composer input{flex:1;border:none;padding:12px 14px;font-size:13.5px;outline:none}
+.msg-composer button{border:none;background:var(--pink);color:#fff;padding:0 20px;cursor:pointer;font-weight:600}
+@media(max-width:700px){.msg-layout{grid-template-columns:1fr;height:auto}.msg-convo-list{max-height:180px}}
+
+/* ---- quote comparison (My Requirements) ---- */
+.requirement-card{border:1px solid var(--line);border-radius:12px;padding:16px 18px;margin-bottom:16px}
+.quote-compare-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin-top:12px}
+.quote-card{border:1px solid var(--line);border-radius:10px;padding:12px 14px;background:var(--card)}
+.quote-card.accepted{border-color:var(--green);background:var(--green-tint)}
+.quote-card .qprice{font-size:17px;font-weight:700;color:var(--pink)}
+
+/* ---- admin quality/fraud flags ---- */
+.flag-item{border-left:3px solid var(--gold);background:var(--gold-tint);border-radius:0 8px 8px 0;padding:10px 14px;margin-bottom:8px;font-size:13px}
+.flag-item.severe{border-left-color:var(--red);background:var(--red-tint)}
+.flag-type{font-size:10.5px;text-transform:uppercase;letter-spacing:.04em;font-weight:700;color:var(--ink-soft);display:block;margin-bottom:2px}
+
+/* ---- onboarding checklist (vendor dashboard, pending state) ---- */
+.onboard-checklist{margin-top:10px}
+.onboard-item{display:flex;align-items:center;gap:8px;font-size:13px;padding:5px 0}
+.onboard-item .tick{width:16px;height:16px;border-radius:50%;border:2px solid var(--line);flex:0 0 auto;display:flex;align-items:center;justify-content:center;font-size:10px}
+.onboard-item.done .tick{background:var(--green);border-color:var(--green);color:#fff}
+.onboard-item.done{color:var(--ink-soft);text-decoration:line-through}

@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Messages — Loomybox.com</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+
+<header><div class="header-inner" id="site-nav"></div></header>
+
+<div class="wrap page">
+  <h1>Messages</h1>
+  <div class="msg-layout">
+    <div class="msg-convo-list" id="convo-list"></div>
+    <div class="msg-thread" id="msg-thread">
+      <div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--ink-soft);font-size:13.5px">
+        Select a conversation to start chatting
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="assets/api.js"></script>
+<script>
+  const user = requireLogin();
+  renderNav();
+
+  let conversations = [];
+  let activeConvoId = null;
+  let pollTimer = null;
+
+  function otherPartyName(convo) {
+    return user.role === "CUSTOMER" ? convo.vendor.businessName : convo.customer.name;
+  }
+  function otherPartyId(convo) {
+    // For a customer, the "other party" id to POST to is the vendorId.
+    // For a vendor, it's the customer's userId.
+    return user.role === "CUSTOMER" ? convo.vendorId : convo.customerId;
+  }
+
+  async function loadConversations() {
+    conversations = await apiFetch("/messages/conversations");
+    const el = document.getElementById("convo-list");
+    if (!conversations.length) {
+      el.innerHTML = `<div style="padding:20px;font-size:13px;color:var(--ink-soft)">No conversations yet.</div>`;
+      return;
+    }
+    el.innerHTML = conversations.map(c => {
+      const last = c.messages[0];
+      return `
+        <div class="msg-convo-item ${c.id === activeConvoId ? "active" : ""}" onclick="openConvo(${c.id})">
+          <h5>${escapeHtml(otherPartyName(c))}</h5>
+          <p>${last ? escapeHtml(last.content) : "No messages yet"}</p>
+        </div>
+      `;
+    }).join("");
+  }
+
+  async function openConvo(id) {
+    activeConvoId = id;
+    loadConversations(); // re-render to highlight active
+    const convo = conversations.find(c => c.id === id);
+    const threadEl = document.getElementById("msg-thread");
+    threadEl.innerHTML = `
+      <div style="padding:14px 16px;border-bottom:1px solid var(--line);font-weight:600;font-size:14px">${escapeHtml(otherPartyName(convo))}</div>
+      <div class="msg-thread-body" id="thread-body">Loading…</div>
+      <div class="msg-composer">
+        <input type="text" id="thread-input" placeholder="Type a message…">
+        <button onclick="sendMessage()">Send</button>
+      </div>
+    `;
+    document.getElementById("thread-input").addEventListener("keydown", (e) => { if (e.key === "Enter") sendMessage(); });
+    await loadThread(id);
+  }
+
+  async function loadThread(id) {
+    const full = await apiFetch(`/messages/conversations/${id}`);
+    const body = document.getElementById("thread-body");
+    if (!body) return; // user navigated away from this convo
+    body.innerHTML = full.messages.map(m => `
+      <div class="msg-bubble ${m.senderId === user.id ? "mine" : "theirs"}">
+        ${escapeHtml(m.content)}
+        <span class="time">${new Date(m.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</span>
+      </div>
+    `).join("");
+    body.scrollTop = body.scrollHeight;
+  }
+
+  async function sendMessage() {
+    const input = document.getElementById("thread-input");
+    const text = input.value.trim();
+    if (!text || !activeConvoId) return;
+    input.value = "";
+    const convo = conversations.find(c => c.id === activeConvoId);
+    try {
+      await apiFetch(`/messages/to/${otherPartyId(convo)}`, { method: "POST", body: JSON.stringify({ content: text }) });
+      loadThread(activeConvoId);
+    } catch (err) {
+      alert(err.message);
+    }
+  }
+
+  // If arriving from a "Message vendor" button elsewhere (package.html, bookings.html)
+  // with ?with=<vendorId or customerUserId>, start/open that conversation directly.
+  async function openFromQueryParam() {
+    const params = new URLSearchParams(window.location.search);
+    const withId = params.get("with");
+    if (!withId) return;
+    // Ensure a conversation exists by sending an initial ping only if none exists yet —
+    // simplest: try to find it in the loaded list; if absent, the first real message creates it.
+    const existing = conversations.find(c => otherPartyId(c) === Number(withId));
+    if (existing) { openConvo(existing.id); return; }
+
+    // No conversation yet — show a lightweight composer that creates one on first send.
+    const threadEl = document.getElementById("msg-thread");
+    threadEl.innerHTML = `
+      <div style="padding:14px 16px;border-bottom:1px solid var(--line);font-weight:600;font-size:14px">New message</div>
+      <div class="msg-thread-body" id="thread-body"></div>
+      <div class="msg-composer">
+        <input type="text" id="thread-input" placeholder="Type your first message…">
+        <button onclick="sendFirstMessage(${withId})">Send</button>
+      </div>
+    `;
+    document.getElementById("thread-input").addEventListener("keydown", (e) => { if (e.key === "Enter") sendFirstMessage(Number(withId)); });
+  }
+
+  async function sendFirstMessage(withId) {
+    const input = document.getElementById("thread-input");
+    const text = input.value.trim();
+    if (!text) return;
+    try {
+      await apiFetch(`/messages/to/${withId}`, { method: "POST", body: JSON.stringify({ content: text }) });
+      await loadConversations();
+      const convo = conversations.find(c => otherPartyId(c) === withId);
+      if (convo) openConvo(convo.id);
+    } catch (err) {
+      alert(err.message);
+    }
+  }
+
+  (async function init() {
+    await loadConversations();
+    await openFromQueryParam();
+    // Light polling so an open thread updates without needing websockets.
+    pollTimer = setInterval(() => { if (activeConvoId) loadThread(activeConvoId); loadConversations(); }, 8000);
+  })();
+</script>
+</body>
+</html>

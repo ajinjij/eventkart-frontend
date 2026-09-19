@@ -21,6 +21,10 @@
   <p class="section-label" style="margin-top:32px">Disputed bookings</p>
   <div id="disputed-bookings"></div>
 
+  <p class="section-label" style="margin-top:32px">Quality &amp; fraud flags</p>
+  <p style="font-size:13px;color:var(--ink-soft);margin-bottom:12px">Rules-based signals worth a human look — not automatic actions.</p>
+  <div id="admin-flags"></div>
+
   <p class="section-label" style="margin-top:32px">Coupons</p>
   <form id="coupon-form" style="max-width:520px;display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px">
     <input type="text" id="c-code" placeholder="CODE (e.g. WELCOME10)" required style="text-transform:uppercase">
@@ -356,9 +360,26 @@
   loadStats();
   loadPendingVendors();
   loadDisputes();
+  loadFlags();
   loadCoupons();
   loadSettings();
   loadSections();
+
+  async function loadFlags() {
+    const el = document.getElementById("admin-flags");
+    const flags = await apiFetch("/admin/flags");
+    if (!flags.length) {
+      el.innerHTML = `<div class="empty-state">No flags right now — everything looks normal.</div>`;
+      return;
+    }
+    const labels = { REPEAT_DISPUTES: "Repeat disputes", PRICE_OUTLIER: "Price outlier", INACTIVE_VENDOR: "Inactive vendor" };
+    el.innerHTML = flags.map(f => `
+      <div class="flag-item ${f.type === "REPEAT_DISPUTES" ? "severe" : ""}">
+        <span class="flag-type">${labels[f.type] || f.type}</span>
+        ${escapeHtml(f.vendorName || f.packageName || "")} — ${escapeHtml(f.detail)}
+      </div>
+    `).join("");
+  }
 </script>
 </body>
 </html>
