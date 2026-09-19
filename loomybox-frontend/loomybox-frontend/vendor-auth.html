@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Become a vendor — Loomybox.com</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+
+<header><div class="header-inner" id="site-nav"></div></header>
+
+<div class="auth-box">
+  <div class="auth-toggle">
+    <button id="tab-login" class="active" onclick="showTab('login')">Vendor sign in</button>
+    <button id="tab-register" onclick="showTab('register')">Become a vendor</button>
+  </div>
+
+  <form id="login-form">
+    <div class="field">
+      <label>Email</label>
+      <input type="email" id="login-email" required style="width:100%">
+    </div>
+    <div class="field">
+      <label>Password</label>
+      <input type="password" id="login-password" required style="width:100%">
+    </div>
+    <button class="btn btn-fill" style="width:100%" type="submit">Sign in</button>
+    <div class="error-msg" id="login-error"></div>
+  </form>
+
+  <form id="register-form" style="display:none">
+    <p style="font-size:13px;color:var(--ink-soft);margin-bottom:16px">List your services — events, birthdays, corporate functions, photography, gifting and more. Your account needs a quick approval from our team before it goes live.</p>
+    <div class="field">
+      <label>Your name</label>
+      <input type="text" id="register-name" required style="width:100%">
+    </div>
+    <div class="field">
+      <label>Business email</label>
+      <input type="email" id="register-email" required style="width:100%">
+    </div>
+    <div class="field">
+      <label>Password</label>
+      <input type="password" id="register-password" required minlength="6" style="width:100%">
+    </div>
+    <button class="btn btn-fill" style="width:100%" type="submit">Create vendor account</button>
+    <div class="error-msg" id="register-error"></div>
+  </form>
+
+  <p style="text-align:center;font-size:13px;color:var(--ink-soft);margin-top:20px">
+    Looking to book an event instead? <a href="customer-auth.html" style="color:var(--rose)">Customer sign in →</a>
+  </p>
+</div>
+
+<script src="assets/api.js"></script>
+<script>
+  function showTab(tab) {
+    document.getElementById("tab-login").classList.toggle("active", tab === "login");
+    document.getElementById("tab-register").classList.toggle("active", tab === "register");
+    document.getElementById("login-form").style.display = tab === "login" ? "block" : "none";
+    document.getElementById("register-form").style.display = tab === "register" ? "block" : "none";
+  }
+
+  function redirectAfterAuth(user) {
+    if (user.role === "ADMIN") window.location.href = "admin.html";
+    else if (user.role === "CUSTOMER") window.location.href = "index.html"; // in case an existing customer signs in here
+    else window.location.href = "vendor-dashboard.html";
+  }
+
+  document.getElementById("login-form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const email = document.getElementById("login-email").value;
+    const password = document.getElementById("login-password").value;
+    const errEl = document.getElementById("login-error");
+    errEl.textContent = "";
+    try {
+      const data = await apiFetch("/auth/login", { method: "POST", body: JSON.stringify({ email, password }) });
+      setSession(data.token, data.user);
+      redirectAfterAuth(data.user);
+    } catch (err) {
+      errEl.textContent = err.message;
+    }
+  });
+
+  document.getElementById("register-form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const name = document.getElementById("register-name").value;
+    const email = document.getElementById("register-email").value;
+    const password = document.getElementById("register-password").value;
+    const errEl = document.getElementById("register-error");
+    errEl.textContent = "";
+    try {
+      const data = await apiFetch("/auth/register", {
+        method: "POST",
+        body: JSON.stringify({ name, email, password, role: "VENDOR" }),
+      });
+      setSession(data.token, data.user);
+      redirectAfterAuth(data.user);
+    } catch (err) {
+      errEl.textContent = err.message;
+    }
+  });
+
+  renderNav();
+</script>
+</body>
+</html>

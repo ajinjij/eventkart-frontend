@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>My Orders — Loomybox.com</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+
+<header><div class="header-inner" id="site-nav"></div></header>
+
+<div class="wrap page">
+  <h1>My Orders</h1>
+  <div id="bookings-list"></div>
+
+  <p class="section-label" style="margin-top:40px">My requirements &amp; quotes</p>
+  <p style="font-size:13px;color:var(--ink-soft);margin-bottom:12px">Custom requests you've posted — compare quotes from vendors and accept the one you like.</p>
+  <div id="requirements-list"></div>
+</div>
+
+<footer>Loomybox.com · connecting customers with trusted event coordinators</footer>
+
+<script src="assets/api.js"></script>
+<script>
+  requireRole("CUSTOMER");
+  renderNav("bookings");
+
+  // Maps a booking's backend status onto a 4-step order-tracking timeline,
+  // Flipkart-style ("Ordered" -> "Confirmed" -> "Delivered" style progression).
+  const STEPS = ["Booked", "Paid", "Event delivered", "Reviewed"];
+
+  function stepIndexFor(booking) {
+    if (booking.status === "CANCELLED" || booking.status === "DISPUTED") return -1; // shown separately
+    if (booking.review) return 3;
+    if (booking.status === "COMPLETED") return 2;
+    if (booking.status === "CONFIRMED") return 1;
+    return 0; // PENDING_PAYMENT
+  }
+
+  function timelineHtml(booking) {
+    const current = stepIndexFor(booking);
+    if (current === -1) {
+      return `<div class="badge ${booking.status.toLowerCase()}" style="margin-top:10px">${booking.status}${booking.disputeReason ? " · " + booking.disputeReason : ""}</div>`;
+    }
+    return `<div class="order-timeline">
+      ${STEPS.map((label, i) => `
+        <div class="timeline-step ${i < current ? "done" : i === current ? "current" : ""}">
+          <div class="line"></div>
+          <div class="dot">${i < current ? "✓" : i + 1}</div>
+          <div class="label">${label}</div>
+        </div>
+      `).join("")}
+    </div>`;
+  }
+
+  async function loadBookings() {
+    const bookings = await apiFetch("/bookings/mine");
+    const list = document.getElementById("bookings-list");
+
+    if (!bookings.length) {
+      list.innerHTML = `<div class="empty-state">No orders yet. <a href="index.html" style="color:var(--fk-blue)">Browse packages →</a></div>`;
+      return;
+    }
+
+    list.innerHTML = bookings.map(b => `
+      <div class="list-item" style="flex-direction:column;align-items:stretch">
+        <div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:10px">
+          <div class="info">
+            <h4>${b.vendor.businessName}</h4>
+            <p>${formatMoney(b.totalAmount)} · ${b.eventDate ? new Date(b.eventDate).toLocaleDateString() : "date not set"}</p>
+            ${b.balanceDue > 0 ? `<p style="color:var(--gold);font-weight:600">Balance due: ${formatMoney(b.balanceDue)}</p>` : ""}
+          </div>
+          <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+            ${b.balanceDue > 0 ? `<button class="btn btn-sm btn-fill" onclick="payBalance(${b.id})">Pay balance</button>` : ""}
+            ${b.status === "COMPLETED" && !b.review ? `<button class="btn btn-sm btn-fill" onclick="openReview(${b.id})">Leave a review</button>` : ""}
+            ${b.review ? `<span style="font-size:13px;color:var(--ink-soft)">★ ${b.review.rating} reviewed</span>` : ""}
+            ${(b.status === "CONFIRMED" || b.status === "COMPLETED") ? `<button class="btn btn-sm btn-outline-danger" onclick="dispute(${b.id})">Report an issue</button>` : ""}
+          </div>
+        </div>
+        ${timelineHtml(b)}
+      </div>
+    `).join("");
+  }
+
+  async function payBalance(bookingId) {
+    try {
+      await apiFetch(`/bookings/${bookingId}/pay-balance`, { method: "POST" });
+      alert("Balance paid.");
+      loadBookings();
+    } catch (err) {
+      alert(err.message);
+    }
+  }
+
+  async function openReview(bookingId) {
+    const rating = prompt("Rate this vendor from 1 to 5:");
+    if (!rating) return;
+    const comment = prompt("Add a comment (optional):") || "";
+    try {
+      await apiFetch("/reviews", { method: "POST", body: JSON.stringify({ bookingId, rating: Number(rating), comment }) });
+      loadBookings();
+    } catch (err) {
+      alert(err.message);
+    }
+  }
+
+  async function dispute(bookingId) {
+    const reason = prompt("What went wrong? An admin will review this.");
+    if (!reason) return;
+    try {
+      await apiFetch(`/bookings/${bookingId}/dispute`, { method: "POST", body: JSON.stringify({ reason }) });
+      loadBookings();
+    } catch (err) {
+      alert(err.message);
+    }
+  }
+
+  loadBookings();
+  loadRequirements();
+
+  // ---- My Requirements: quote comparison + accept ----
+  async function loadRequirements() {
+    const el = document.getElementById("requirements-list");
+    const requirements = await apiFetch("/requirements/mine");
+    if (!requirements.length) {
+      el.innerHTML = `<div class="empty-state">No requirements posted yet. <a href="plan.html" style="color:var(--pink)">Plan my event with AI →</a></div>`;
+      return;
+    }
+    el.innerHTML = requirements.map(r => `
+      <div class="requirement-card">
+        <div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px">
+          <div>
+            <h4 style="font-size:15px">${escapeHtml(r.eventType)} in ${escapeHtml(r.city)}</h4>
+            <p style="font-size:12.5px;color:var(--ink-soft)">
+              ${r.guestCount ? r.guestCount + " guests · " : ""}Event date ${new Date(r.eventDate).toLocaleDateString()} ·
+              ${r.servicesNeeded ? escapeHtml(r.servicesNeeded) : "General"}
+            </p>
+          </div>
+          <span class="badge ${r.status === "OPEN" ? "pending" : r.status === "BOOKED" ? "confirmed" : "cancelled"}">${r.status}</span>
+        </div>
+        ${r.quotes.length === 0
+          ? `<p style="font-size:12.5px;color:var(--ink-soft);margin-top:10px">No quotes yet — vendors in your area will respond soon.</p>`
+          : `<div class="quote-compare-row">${r.quotes.map(q => `
+              <div class="quote-card ${q.status === "ACCEPTED" ? "accepted" : ""}">
+                <div class="qprice">${formatMoney(q.price)}</div>
+                ${q.message ? `<p style="font-size:12.5px;margin:6px 0">${escapeHtml(q.message)}</p>` : ""}
+                <p style="font-size:11px;color:var(--ink-soft)">${q.status}</p>
+                <div style="display:flex;gap:6px;margin-top:8px">
+                  ${q.status === "PENDING" ? `<button class="btn btn-sm btn-fill" style="flex:1" onclick="acceptQuote(${q.id})">Accept</button>` : ""}
+                  <button class="btn btn-sm" style="flex:1" onclick="window.location.href='messages.html?with=${q.vendorId}'">Message</button>
+                </div>
+              </div>
+            `).join("")}</div>`}
+      </div>
+    `).join("");
+  }
+
+  async function acceptQuote(quoteId) {
+    if (!confirm("Accept this quote? This will create a booking and reject the other quotes on this requirement.")) return;
+    try {
+      await apiFetch(`/quotes/${quoteId}/accept`, { method: "POST" });
+      alert("Quote accepted — head to My Orders to pay and confirm.");
+      loadRequirements();
+      loadBookings();
+    } catch (err) {
+      alert(err.message);
+    }
+  }
+</script>
+</body>
+</html>

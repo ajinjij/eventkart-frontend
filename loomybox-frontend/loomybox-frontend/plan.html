@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Plan my event — Loomybox.com</title>
+<link rel="stylesheet" href="assets/style.css">
+<style>
+  .plan-wrap{max-width:760px;margin:0 auto;padding:24px 20px 60px}
+  .plan-intro{text-align:center;margin-bottom:28px}
+  .plan-intro h1{font-size:26px;margin-bottom:6px}
+  .plan-intro p{color:var(--ink-soft);font-size:14.5px}
+  .plan-form{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:24px}
+  .plan-row{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+  .plan-services{display:flex;flex-wrap:wrap;gap:8px}
+  .plan-chip{border:1px solid var(--line);border-radius:20px;padding:7px 14px;font-size:13px;cursor:pointer;user-select:none;background:#fff}
+  .plan-chip.active{background:var(--pink);color:#fff;border-color:var(--pink)}
+  .plan-loading{text-align:center;padding:36px 0;color:var(--ink-soft);display:none}
+  .plan-results{display:none;margin-top:28px}
+  .plan-advice{background:var(--pink-tint);border-radius:12px;padding:16px 18px;font-size:14px;margin-bottom:22px;line-height:1.5}
+  .checklist-item{border:1px solid var(--line);border-radius:12px;padding:16px 18px;margin-bottom:14px}
+  .checklist-item .head{display:flex;justify-content:space-between;align-items:center;margin-bottom:4px}
+  .checklist-item .head h4{font-size:15px;text-transform:capitalize}
+  .budget-pill{font-size:12px;font-weight:700;color:var(--pink);background:var(--pink-tint);padding:3px 10px;border-radius:10px}
+  .checklist-item .why{font-size:13px;color:var(--ink-soft);margin-bottom:12px}
+  .match-row{display:flex;gap:10px;overflow-x:auto;padding-bottom:4px}
+  .match-card{flex:0 0 150px;border:1px solid var(--line);border-radius:10px;overflow:hidden;cursor:pointer;background:#fff}
+  .match-card img{width:100%;height:90px;object-fit:cover;display:block}
+  .match-card .mc-body{padding:8px 10px}
+  .match-card .mc-body h5{font-size:12.5px;margin-bottom:2px;line-height:1.3}
+  .match-card .mc-body .price{font-size:12.5px;font-weight:700;color:var(--pink)}
+  .no-match{font-size:13px;color:var(--ink-soft);font-style:italic}
+  .quote-cta{margin-top:8px;text-align:center;padding:20px;border:1px dashed var(--line);border-radius:12px}
+</style>
+</head>
+<body>
+
+<header><div class="header-inner" id="site-nav"></div></header>
+
+<div class="plan-wrap">
+  <div class="plan-intro">
+    <h1>Plan my event with AI</h1>
+    <p>Tell us what you're planning — get a service checklist, a suggested budget split, and matching vendors, all in one go.</p>
+  </div>
+
+  <form class="plan-form" id="plan-form">
+    <div class="plan-row">
+      <div class="field">
+        <label>Event type</label>
+        <select id="pf-eventType" required style="width:100%"></select>
+      </div>
+      <div class="field">
+        <label>City</label>
+        <input type="text" id="pf-city" placeholder="e.g. Kochi" style="width:100%">
+      </div>
+    </div>
+    <div class="plan-row">
+      <div class="field">
+        <label>Guest count</label>
+        <input type="number" id="pf-guestCount" min="1" placeholder="e.g. 100" style="width:100%">
+      </div>
+      <div class="field">
+        <label>Budget range (₹)</label>
+        <div style="display:flex;gap:8px">
+          <input type="number" id="pf-budgetMin" placeholder="Min" style="width:100%">
+          <input type="number" id="pf-budgetMax" placeholder="Max" style="width:100%">
+        </div>
+      </div>
+    </div>
+    <div class="field">
+      <label>Services you already know you need (optional — the AI will suggest more)</label>
+      <div class="plan-services" id="pf-services"></div>
+    </div>
+    <div class="field">
+      <label>Anything else we should know?</label>
+      <textarea id="pf-notes" rows="3" style="width:100%" placeholder="e.g. outdoor venue, vegetarian catering only..."></textarea>
+    </div>
+    <button class="btn btn-fill" style="width:100%" type="submit">Get my plan</button>
+    <div class="error-msg" id="pf-error"></div>
+  </form>
+
+  <div class="plan-loading" id="plan-loading">Thinking through your event…</div>
+
+  <div class="plan-results" id="plan-results">
+    <div class="plan-advice" id="plan-advice"></div>
+    <div id="checklist-items"></div>
+    <div class="quote-cta" id="quote-cta" style="display:none">
+      <p style="font-size:13.5px;margin-bottom:10px">
+        No ready-made packages matched <strong id="quote-cta-categories"></strong> yet —
+        post it as a custom requirement and get quotes directly from vendors.
+      </p>
+      <button class="btn" id="quote-cta-btn">Request custom quotes</button>
+    </div>
+  </div>
+</div>
+
+<script src="assets/api.js"></script>
+<script>
+  // Populate event type + service chip options from the shared CATEGORIES list.
+  const eventTypeSelect = document.getElementById("pf-eventType");
+  eventTypeSelect.innerHTML = CATEGORIES.map(c => `<option value="${c.value}">${c.label}</option>`).join("");
+
+  const servicesEl = document.getElementById("pf-services");
+  const selectedServices = new Set();
+  servicesEl.innerHTML = CATEGORIES.map(c => `<span class="plan-chip" data-v="${c.value}">${c.label}</span>`).join("");
+  servicesEl.querySelectorAll(".plan-chip").forEach(chip => {
+    chip.addEventListener("click", () => {
+      const v = chip.dataset.v;
+      if (selectedServices.has(v)) { selectedServices.delete(v); chip.classList.remove("active"); }
+      else { selectedServices.add(v); chip.classList.add("active"); }
+    });
+  });
+
+  let lastNeedsCustomQuote = [];
+  let lastFormValues = {};
+
+  document.getElementById("plan-form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const errEl = document.getElementById("pf-error");
+    errEl.textContent = "";
+
+    const body = {
+      eventType: eventTypeSelect.value,
+      city: document.getElementById("pf-city").value.trim(),
+      guestCount: document.getElementById("pf-guestCount").value,
+      budgetMin: document.getElementById("pf-budgetMin").value,
+      budgetMax: document.getElementById("pf-budgetMax").value,
+      servicesNeeded: [...selectedServices].join(", "),
+      notes: document.getElementById("pf-notes").value.trim(),
+    };
+    lastFormValues = body;
+
+    document.getElementById("plan-results").style.display = "none";
+    document.getElementById("plan-loading").style.display = "block";
+
+    try {
+      const data = await apiFetch("/assistant/plan", { method: "POST", body: JSON.stringify(body) });
+      renderResults(data);
+    } catch (err) {
+      errEl.textContent = err.message || "Something went wrong — please try again.";
+    } finally {
+      document.getElementById("plan-loading").style.display = "none";
+    }
+  });
+
+  function matchCardHtml(pkg) {
+    return `
+      <div class="match-card" onclick="window.location.href='package.html?id=${pkg.id}'">
+        ${pkg.imageUrl ? `<img src="${pkg.imageUrl}" alt="${escapeHtml(pkg.name)}">` : `<div style="height:90px;display:flex;align-items:center;justify-content:center;background:var(--pink-tint)">${categoryIconSvg(pkg.vendor.category)}</div>`}
+        <div class="mc-body">
+          <h5>${escapeHtml(pkg.name)}</h5>
+          <span class="price">${formatMoney(pkg.price)}</span>
+        </div>
+      </div>`;
+  }
+
+  function renderResults(data) {
+    document.getElementById("plan-advice").textContent = data.advice;
+
+    const itemsEl = document.getElementById("checklist-items");
+    itemsEl.innerHTML = data.checklist.map(item => `
+      <div class="checklist-item">
+        <div class="head">
+          <h4>${escapeHtml(item.category.replace("-", " "))}</h4>
+          ${item.suggestedBudgetShare ? `<span class="budget-pill">~${item.suggestedBudgetShare}% of budget</span>` : ""}
+        </div>
+        <div class="why">${escapeHtml(item.why || "")}</div>
+        ${item.hasMatches
+          ? `<div class="match-row">${item.matches.map(matchCardHtml).join("")}</div>`
+          : `<div class="no-match">No ready-made packages found for this yet in your area/budget.</div>`}
+      </div>
+    `).join("");
+
+    lastNeedsCustomQuote = data.needsCustomQuote || [];
+    const ctaEl = document.getElementById("quote-cta");
+    if (lastNeedsCustomQuote.length) {
+      document.getElementById("quote-cta-categories").textContent =
+        lastNeedsCustomQuote.map(c => c.replace("-", " ")).join(", ");
+      ctaEl.style.display = "block";
+    } else {
+      ctaEl.style.display = "none";
+    }
+
+    document.getElementById("plan-results").style.display = "block";
+  }
+
+  document.getElementById("quote-cta-btn").addEventListener("click", async () => {
+    const user = getUser();
+    if (!user || user.role !== "CUSTOMER") {
+      // Send them to sign in, then bounce back here — plan.html re-reads the
+      // last submitted form values from sessionStorage so nothing is lost.
+      sessionStorage.setItem("ek_pending_plan", JSON.stringify({ ...lastFormValues, needsCustomQuote: lastNeedsCustomQuote }));
+      window.location.href = "customer-auth.html?next=plan.html";
+      return;
+    }
+    await postRequirement();
+  });
+
+  async function postRequirement() {
+    const btn = document.getElementById("quote-cta-btn");
+    btn.disabled = true;
+    btn.textContent = "Posting…";
+    try {
+      await apiFetch("/requirements", {
+        method: "POST",
+        body: JSON.stringify({
+          eventType: lastFormValues.eventType,
+          eventDate: new Date(Date.now() + 30 * 86400000).toISOString(), // placeholder — customer can refine later from "My requirements"
+          city: lastFormValues.city || "Not specified",
+          guestCount: lastFormValues.guestCount || null,
+          budgetMin: lastFormValues.budgetMin || null,
+          budgetMax: lastFormValues.budgetMax || null,
+          servicesNeeded: lastNeedsCustomQuote.join(", "),
+          notes: lastFormValues.notes,
+        }),
+      });
+      btn.textContent = "Requirement posted ✓";
+      btn.parentElement.insertAdjacentHTML("beforeend",
+        `<p style="font-size:12.5px;color:var(--ink-soft);margin-top:8px">Vendors in your area can now send you quotes — check <a href="bookings.html" style="color:var(--pink)">My requirements</a>.</p>`);
+    } catch (err) {
+      btn.disabled = false;
+      btn.textContent = "Request custom quotes";
+      alert(err.message || "Couldn't post your requirement — please try again.");
+    }
+  }
+
+  // If we just came back from signing in mid-flow, restore the plan and
+  // finish posting the requirement automatically.
+  (async function resumePendingPlan() {
+    const pending = sessionStorage.getItem("ek_pending_plan");
+    if (!pending) return;
+    sessionStorage.removeItem("ek_pending_plan");
+    const user = getUser();
+    if (!user || user.role !== "CUSTOMER") return;
+    const data = JSON.parse(pending);
+    lastFormValues = data;
+    lastNeedsCustomQuote = data.needsCustomQuote || [];
+    if (lastNeedsCustomQuote.length) await postRequirement();
+  })();
+
+  renderNav();
+</script>
+</body>
+</html>

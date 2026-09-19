@@ -1,0 +1,412 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>My packages — Loomybox.com</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+
+<header><div class="header-inner" id="site-nav"></div></header>
+
+<section class="page">
+  <div class="wrap">
+    <h1>Vendor dashboard</h1>
+    <p style="margin:-6px 0 16px"><a href="messages.html" style="color:var(--pink);font-size:13.5px;font-weight:500">💬 Messages with customers →</a></p>
+
+    <div id="status-banner"></div>
+
+    <p class="section-label" style="margin-top:24px">Business profile</p>
+    <form id="profile-form" style="max-width:480px;margin-bottom:40px">
+      <div class="field">
+        <label>Business name</label>
+        <input type="text" id="p-name" style="width:100%">
+      </div>
+      <div class="field">
+        <label>Category</label>
+        <select id="p-category" style="width:100%"></select>
+      </div>
+      <div class="field">
+        <label>City / area</label>
+        <input type="text" id="p-city" style="width:100%">
+      </div>
+      <div class="field">
+        <label>District (Kerala)</label>
+        <select id="p-district" style="width:100%"></select>
+      </div>
+      <div class="field">
+        <label>Pincode</label>
+        <input type="text" id="p-pincode" style="width:100%" placeholder="e.g. 682001">
+      </div>
+      <div class="field">
+        <label>Description</label>
+        <textarea id="p-description" rows="3"></textarea>
+      </div>
+      <button class="btn btn-fill" type="submit">Save profile</button>
+      <span class="success-msg" id="profile-saved"></span>
+    </form>
+
+    <p class="section-label">Add a new package</p>
+    <form id="package-form" style="max-width:480px;margin-bottom:40px">
+      <div class="field">
+        <label>Package name</label>
+        <input type="text" id="pkg-name" placeholder="e.g. Signature package" required style="width:100%">
+      </div>
+      <div class="field">
+        <label>Description</label>
+        <textarea id="pkg-description" rows="2" placeholder="What's included"></textarea>
+      </div>
+      <div class="field">
+        <label>Price (₹)</label>
+        <input type="number" id="pkg-price" required style="width:100%">
+      </div>
+      <div class="field">
+        <label>Original price (₹) — optional, shows a strikethrough discount</label>
+        <input type="number" id="pkg-original-price" style="width:100%" placeholder="Leave blank if there's no discount">
+      </div>
+      <div class="field">
+        <label>Photo (optional)</label>
+        <input type="file" id="pkg-image" accept="image/*">
+      </div>
+      <button class="btn btn-fill" type="submit">Add package</button>
+      <div class="error-msg" id="package-error"></div>
+    </form>
+
+    <p class="section-label">Your packages</p>
+    <div class="grid" id="packages-grid"></div>
+
+    <p class="section-label" style="margin-top:40px">Availability calendar</p>
+    <p style="font-size:13px;color:var(--ink-soft);margin-bottom:10px">Block dates you're already committed elsewhere — customers won't see these dates as available when planning around you.</p>
+    <div class="avail-form">
+      <input type="date" id="avail-date" style="flex:1">
+      <input type="text" id="avail-reason" placeholder="Reason (optional)" style="flex:1">
+      <button class="btn btn-sm btn-fill" onclick="addBlockedDate()">Block date</button>
+    </div>
+    <div class="avail-list" id="avail-list"></div>
+
+    <p class="section-label" style="margin-top:40px">Open requirements you can quote</p>
+    <p style="font-size:13px;color:var(--ink-soft);margin-bottom:10px">Customers in your city and category looking for custom quotes.</p>
+    <div id="open-requirements"></div>
+
+    <p class="section-label" style="margin-top:40px">Recent bookings</p>
+    <div id="bookings-list"></div>
+  </div>
+</section>
+
+<script src="assets/api.js"></script>
+<script>
+  requireRole("VENDOR");
+  renderNav("vendor");
+
+  document.getElementById("p-category").innerHTML = CATEGORIES.map(c => `<option value="${c.value}">${c.label}</option>`).join("") + `<option value="other">Other</option>`;
+  document.getElementById("p-district").innerHTML = `<option value="">Select district</option>` + KERALA_DISTRICTS.map(d => `<option value="${d}">${d}</option>`).join("");
+
+  let pendingImageDataUrl = null;
+
+  document.getElementById("pkg-image").addEventListener("change", (e) => {
+    const file = e.target.files[0];
+    if (!file) { pendingImageDataUrl = null; return; }
+    const reader = new FileReader();
+    reader.onload = () => { pendingImageDataUrl = reader.result; };
+    reader.readAsDataURL(file);
+  });
+
+  let myVendorId = null;
+
+  async function loadProfile() {
+    const vendor = await apiFetch("/vendors/me/profile");
+    myVendorId = vendor.id;
+    document.getElementById("p-name").value = vendor.businessName || "";
+    document.getElementById("p-category").value = vendor.category || "other";
+    document.getElementById("p-city").value = vendor.city || "";
+    document.getElementById("p-district").value = vendor.district || "";
+    document.getElementById("p-pincode").value = vendor.pincode || "";
+    document.getElementById("p-description").value = vendor.description || "";
+
+    const banner = document.getElementById("status-banner");
+    if (vendor.status === "PENDING") {
+      const steps = [
+        { done: !!vendor.description, label: "Add a business description" },
+        { done: !!vendor.district, label: "Set your district for local search" },
+        { done: vendor.packages.length > 0, label: "Add at least one package" },
+        { done: vendor.packages.some(p => p.imageUrl), label: "Add a photo to a package" },
+      ];
+      banner.innerHTML = `
+        <div class="badge pending">Pending approval</div>
+        <p style="margin-top:8px;color:var(--ink-soft);font-size:13px">Your account is awaiting admin approval. Complete these while you wait — a fuller profile gets approved and booked faster:</p>
+        <div class="onboard-checklist">
+          ${steps.map(s => `<div class="onboard-item ${s.done ? "done" : ""}"><span class="tick">${s.done ? "✓" : ""}</span>${s.label}</div>`).join("")}
+        </div>
+      `;
+    } else if (vendor.status === "REJECTED") {
+      banner.innerHTML = `<div class="badge cancelled">Not approved</div>`;
+    } else {
+      const avgResponse = vendor.respondedQuoteCount > 0
+        ? Math.round(vendor.totalResponseMinutes / vendor.respondedQuoteCount)
+        : null;
+      banner.innerHTML = `
+        <div class="badge confirmed">Approved · ★ ${vendor.rating.toFixed(1)} (${vendor.reviewCount} reviews)</div>
+        <div class="trust-row">
+          <span class="trust-chip verified">✓ Verified vendor</span>
+          ${avgResponse != null ? `<span class="trust-chip">Usually replies in ${avgResponse < 60 ? avgResponse + " min" : Math.round(avgResponse / 60) + " hr"}</span>` : ""}
+          <span class="trust-chip">${vendor.completedBookingsCount} completed booking${vendor.completedBookingsCount === 1 ? "" : "s"}</span>
+        </div>
+      `;
+    }
+    renderPackages(vendor.packages, vendor.category);
+    loadAvailability();
+    loadOpenRequirements(vendor.category, vendor.city);
+  }
+
+  function renderPackages(packages, category) {
+    const grid = document.getElementById("packages-grid");
+    if (!packages.length) {
+      grid.innerHTML = `<div class="empty-state" style="grid-column:1/-1">No packages yet — add your first one above.</div>`;
+      return;
+    }
+    grid.innerHTML = packages.map(pkg => `
+      <div class="card">
+        <div class="card-img">${pkg.imageUrl ? `<img src="${pkg.imageUrl}" alt="${pkg.name}">` : categoryIconSvg(category)}</div>
+        <div class="card-body">
+          <h4>${pkg.name}</h4>
+          <div class="desc">${pkg.description || ""}</div>
+          ${priceRowHtml(pkg)}
+          <div class="mini-gallery" id="gallery-${pkg.id}">Loading photos…</div>
+          <div style="display:flex;gap:6px;margin:8px 0">
+            <input type="file" id="gallery-input-${pkg.id}" accept="image/*" style="font-size:11px;flex:1">
+            <button class="btn btn-sm" onclick="addGalleryPhoto(${pkg.id})">+ Photo</button>
+          </div>
+          <div style="display:flex;gap:8px">
+            <button class="btn btn-sm" style="flex:1" onclick="editPrice(${pkg.id}, ${pkg.price}, ${pkg.originalPrice || 0})">Edit price</button>
+            <button class="btn btn-sm btn-outline-danger" style="flex:1" onclick="deletePackage(${pkg.id})">Delete</button>
+          </div>
+        </div>
+      </div>
+    `).join("");
+    packages.forEach(pkg => loadGallery(pkg.id));
+  }
+
+  // ---- Package photo gallery (beyond the single cover image) ----
+  async function loadGallery(packageId) {
+    try {
+      const pkg = await apiFetch(`/packages/${packageId}`);
+      const el = document.getElementById(`gallery-${packageId}`);
+      if (!el) return;
+      if (!pkg.images.length) { el.innerHTML = `<span style="font-size:11.5px;color:var(--ink-soft)">No extra photos yet</span>`; return; }
+      el.innerHTML = pkg.images.map(img => `
+        <div class="thumb-wrap">
+          <img src="${img.imageUrl}" alt="">
+          <button class="thumb-remove" onclick="removeGalleryPhoto(${packageId}, ${img.id})">×</button>
+        </div>
+      `).join("");
+    } catch (e) { /* package might be pending-approval-invisible; ignore */ }
+  }
+
+  function addGalleryPhoto(packageId) {
+    const input = document.getElementById(`gallery-input-${packageId}`);
+    const file = input.files[0];
+    if (!file) { alert("Choose a photo first"); return; }
+    const reader = new FileReader();
+    reader.onload = async () => {
+      try {
+        await apiFetch(`/vendors/me/packages/${packageId}/images`, { method: "POST", body: JSON.stringify({ imageUrl: reader.result }) });
+        input.value = "";
+        loadGallery(packageId);
+      } catch (err) { alert(err.message); }
+    };
+    reader.readAsDataURL(file);
+  }
+
+  async function removeGalleryPhoto(packageId, imageId) {
+    try {
+      await apiFetch(`/vendors/me/packages/${packageId}/images/${imageId}`, { method: "DELETE" });
+      loadGallery(packageId);
+    } catch (err) { alert(err.message); }
+  }
+
+  // ---- Availability calendar (blocked dates) ----
+  async function loadAvailability() {
+    if (!myVendorId) return;
+    const dates = await apiFetch(`/vendors/${myVendorId}/availability`);
+    const el = document.getElementById("avail-list");
+    if (!dates.length) { el.innerHTML = `<span style="font-size:12.5px;color:var(--ink-soft)">No dates blocked — you appear available every day.</span>`; return; }
+    el.innerHTML = dates.map(d => `
+      <div class="avail-chip">
+        ${new Date(d.date).toLocaleDateString()} ${d.reason ? "· " + escapeHtml(d.reason) : ""}
+        <button onclick="removeBlockedDate(${d.id})">×</button>
+      </div>
+    `).join("");
+  }
+
+  async function addBlockedDate() {
+    const date = document.getElementById("avail-date").value;
+    const reason = document.getElementById("avail-reason").value.trim();
+    if (!date) { alert("Pick a date first"); return; }
+    try {
+      await apiFetch("/vendors/me/availability", { method: "POST", body: JSON.stringify({ date, reason: reason || undefined }) });
+      document.getElementById("avail-date").value = "";
+      document.getElementById("avail-reason").value = "";
+      loadAvailability();
+    } catch (err) { alert(err.message); }
+  }
+
+  async function removeBlockedDate(id) {
+    try {
+      await apiFetch(`/vendors/me/availability/${id}`, { method: "DELETE" });
+      loadAvailability();
+    } catch (err) { alert(err.message); }
+  }
+
+  // ---- Open requirements this vendor can quote on ----
+  async function loadOpenRequirements() {
+    const el = document.getElementById("open-requirements");
+    try {
+      const requirements = await apiFetch("/requirements/open");
+      if (!requirements.length) {
+        el.innerHTML = `<div class="empty-state">No open requirements matching your category/city right now.</div>`;
+        return;
+      }
+      el.innerHTML = requirements.map(r => `
+        <div class="requirement-card">
+          <div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:10px">
+            <div>
+              <h4 style="font-size:14.5px;font-weight:600">${escapeHtml(r.eventType)} in ${escapeHtml(r.city)}</h4>
+              <p style="font-size:12.5px;color:var(--ink-soft)">
+                ${r.guestCount ? r.guestCount + " guests · " : ""}${r.budgetMin || r.budgetMax ? `Budget ₹${(r.budgetMin || 0).toLocaleString("en-IN")}–₹${(r.budgetMax || 0).toLocaleString("en-IN")}` : "Budget not specified"}
+                · Event date ${new Date(r.eventDate).toLocaleDateString()}
+              </p>
+              ${r.servicesNeeded ? `<p style="font-size:12.5px;margin-top:4px">Needs: ${escapeHtml(r.servicesNeeded)}</p>` : ""}
+              ${r.notes ? `<p style="font-size:12.5px;color:var(--ink-soft);margin-top:4px">"${escapeHtml(r.notes)}"</p>` : ""}
+            </div>
+          </div>
+          <div style="display:flex;gap:8px;margin-top:10px">
+            <input type="number" id="quote-price-${r.id}" placeholder="Your price (₹)" style="flex:1">
+            <input type="text" id="quote-msg-${r.id}" placeholder="Message (optional)" style="flex:2">
+            <button class="btn btn-sm btn-fill" onclick="sendQuote(${r.id})">Send quote</button>
+          </div>
+        </div>
+      `).join("");
+    } catch (err) {
+      el.innerHTML = `<div class="empty-state">${err.message}</div>`;
+    }
+  }
+
+  async function sendQuote(requirementId) {
+    const price = document.getElementById(`quote-price-${requirementId}`).value;
+    const message = document.getElementById(`quote-msg-${requirementId}`).value.trim();
+    if (!price) { alert("Enter a price for your quote"); return; }
+    try {
+      await apiFetch("/quotes", { method: "POST", body: JSON.stringify({ requirementId, price: Number(price), message: message || undefined }) });
+      alert("Quote sent!");
+      loadOpenRequirements();
+    } catch (err) { alert(err.message); }
+  }
+
+  async function editPrice(packageId, currentPrice, currentOriginal) {
+    const newPrice = prompt("New price (₹):", currentPrice);
+    if (newPrice === null) return;
+    const newOriginal = prompt("Original price (₹) — leave as 0 for no discount:", currentOriginal || 0);
+    if (newOriginal === null) return;
+    try {
+      await apiFetch(`/vendors/me/packages/${packageId}`, {
+        method: "PUT",
+        body: JSON.stringify({ price: Number(newPrice), originalPrice: Number(newOriginal) || null }),
+      });
+      loadProfile();
+    } catch (err) {
+      alert(err.message);
+    }
+  }
+
+  async function deletePackage(packageId) {
+    if (!confirm("Remove this package? Customers won't be able to book it anymore.")) return;
+    try {
+      await apiFetch(`/vendors/me/packages/${packageId}`, { method: "DELETE" });
+      loadProfile();
+    } catch (err) {
+      alert(err.message);
+    }
+  }
+
+  document.getElementById("profile-form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    try {
+      await apiFetch("/vendors/me", {
+        method: "PUT",
+        body: JSON.stringify({
+          businessName: document.getElementById("p-name").value,
+          category: document.getElementById("p-category").value,
+          city: document.getElementById("p-city").value,
+          district: document.getElementById("p-district").value,
+          pincode: document.getElementById("p-pincode").value,
+          description: document.getElementById("p-description").value,
+        }),
+      });
+      document.getElementById("profile-saved").textContent = "Saved ✓";
+      setTimeout(() => (document.getElementById("profile-saved").textContent = ""), 2000);
+    } catch (err) {
+      alert(err.message);
+    }
+  });
+
+  document.getElementById("package-form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const errEl = document.getElementById("package-error");
+    errEl.textContent = "";
+    try {
+      const originalPriceVal = document.getElementById("pkg-original-price").value;
+      await apiFetch("/vendors/me/packages", {
+        method: "POST",
+        body: JSON.stringify({
+          name: document.getElementById("pkg-name").value,
+          description: document.getElementById("pkg-description").value,
+          price: Number(document.getElementById("pkg-price").value),
+          originalPrice: originalPriceVal ? Number(originalPriceVal) : null,
+          imageUrl: pendingImageDataUrl,
+        }),
+      });
+      e.target.reset();
+      pendingImageDataUrl = null;
+      loadProfile();
+    } catch (err) {
+      errEl.textContent = err.message;
+    }
+  });
+
+  async function loadBookings() {
+    const bookings = await apiFetch("/bookings/mine");
+    const list = document.getElementById("bookings-list");
+    if (!bookings.length) {
+      list.innerHTML = `<div class="empty-state">No bookings yet.</div>`;
+      return;
+    }
+    list.innerHTML = bookings.map(b => `
+      <div class="list-item">
+        <div class="info">
+          <h4>Booking #${b.id}</h4>
+          <p>${formatMoney(b.totalAmount)} total ${b.eventDate ? "· " + new Date(b.eventDate).toLocaleDateString() : ""}</p>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px">
+          <span class="badge ${b.status.toLowerCase().replace('_payment','')}">${b.status.replace("_", " ")}</span>
+          ${b.status === "CONFIRMED" ? `<button class="btn btn-sm" onclick="markComplete(${b.id})">Mark event complete</button>` : ""}
+        </div>
+      </div>
+    `).join("");
+  }
+
+  async function markComplete(bookingId) {
+    if (!confirm("Mark this event as delivered? This lets the platform release your payout.")) return;
+    try {
+      await apiFetch(`/bookings/${bookingId}/complete`, { method: "POST" });
+      loadBookings();
+    } catch (err) {
+      alert(err.message);
+    }
+  }
+
+  loadProfile();
+  loadBookings();
+</script>
+</body>
+</html>

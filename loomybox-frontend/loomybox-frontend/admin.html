@@ -1,0 +1,385 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Admin — Loomybox.com</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+
+<header><div class="header-inner" id="site-nav"></div></header>
+
+<div class="wrap page">
+  <h1>Admin dashboard</h1>
+
+  <div class="grid" style="grid-template-columns:repeat(3,1fr);margin-bottom:32px" id="stats-grid"></div>
+
+  <p class="section-label">Pending vendor approvals</p>
+  <div id="pending-vendors"></div>
+
+  <p class="section-label" style="margin-top:32px">Disputed bookings</p>
+  <div id="disputed-bookings"></div>
+
+  <p class="section-label" style="margin-top:32px">Quality &amp; fraud flags</p>
+  <p style="font-size:13px;color:var(--ink-soft);margin-bottom:12px">Rules-based signals worth a human look — not automatic actions.</p>
+  <div id="admin-flags"></div>
+
+  <p class="section-label" style="margin-top:32px">Coupons</p>
+  <form id="coupon-form" style="max-width:520px;display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px">
+    <input type="text" id="c-code" placeholder="CODE (e.g. WELCOME10)" required style="text-transform:uppercase">
+    <select id="c-type"><option value="PERCENT">% off</option><option value="FLAT">₹ off</option></select>
+    <input type="number" id="c-value" placeholder="Value (e.g. 10)" required>
+    <input type="number" id="c-min" placeholder="Min order (optional)">
+    <input type="number" id="c-max-uses" placeholder="Max uses (optional)">
+    <input type="date" id="c-expires" placeholder="Expires (optional)">
+    <button class="btn btn-fill" style="grid-column:1/-1" type="submit">Create coupon</button>
+  </form>
+  <div id="coupons-list"></div>
+
+  <p class="section-label" style="margin-top:32px">Site settings</p>
+  <form id="settings-form" style="max-width:520px">
+    <div class="field">
+      <label>Site name</label>
+      <input type="text" id="s-sitename" style="width:100%" placeholder="Loomybox">
+    </div>
+    <div class="field">
+      <label>Accent color</label>
+      <input type="color" id="s-accent" style="width:80px;padding:4px">
+    </div>
+    <div class="field">
+      <label>Homepage headline</label>
+      <input type="text" id="s-headline" style="width:100%">
+    </div>
+    <div class="field">
+      <label>Homepage subtext</label>
+      <textarea id="s-subtext" rows="2"></textarea>
+    </div>
+    <button class="btn btn-fill" type="submit">Save site settings</button>
+    <span class="success-msg" id="settings-saved"></span>
+  </form>
+
+  <p class="section-label" style="margin-top:32px">Homepage sections</p>
+  <p style="color:var(--ink-soft);max-width:640px;margin-bottom:16px">
+    Add new blocks to the homepage — a text block or an image banner with a button — without touching any code.
+    Choose whether it appears above the listings or below them, then reorder, disable, or delete blocks any time.
+  </p>
+
+  <form id="section-form" style="max-width:520px;margin-bottom:20px">
+    <div class="field">
+      <label>Block type</label>
+      <select id="sec-type">
+        <option value="text">Text block</option>
+        <option value="banner">Image banner</option>
+      </select>
+    </div>
+    <div class="field">
+      <label>Placement</label>
+      <select id="sec-placement">
+        <option value="top">Top of page (above listings)</option>
+        <option value="bottom" selected>Bottom of page (below listings)</option>
+      </select>
+    </div>
+    <div class="field">
+      <label>Title</label>
+      <input type="text" id="sec-title" style="width:100%" placeholder="e.g. Why book with us">
+    </div>
+    <div class="field">
+      <label>Body text</label>
+      <textarea id="sec-body" rows="2" style="width:100%" placeholder="e.g. Every vendor is verified..."></textarea>
+    </div>
+    <div class="field">
+      <label>Image URL (banner only)</label>
+      <input type="text" id="sec-image" style="width:100%" placeholder="https://... or leave blank">
+    </div>
+    <div class="field">
+      <label>Button text (optional)</label>
+      <input type="text" id="sec-btn-text" style="width:100%" placeholder="e.g. Browse packages">
+    </div>
+    <div class="field">
+      <label>Button link (optional)</label>
+      <input type="text" id="sec-btn-link" style="width:100%" placeholder="e.g. index.html">
+    </div>
+    <button class="btn btn-fill" type="submit">Add section</button>
+  </form>
+  <div id="sections-list"></div>
+</div>
+
+<footer>Loomybox.com · connecting customers with trusted event coordinators</footer>
+
+<script src="assets/api.js"></script>
+<script>
+  requireRole("ADMIN");
+  renderNav("admin");
+
+  async function loadStats() {
+    const stats = await apiFetch("/admin/stats");
+    document.getElementById("stats-grid").innerHTML = `
+      <div class="card"><div class="card-body">
+        <div class="cat">Commission earned</div>
+        <h4 style="font-size:20px">${formatMoney(stats.totalCommission)}</h4>
+      </div></div>
+      <div class="card"><div class="card-body">
+        <div class="cat">Active bookings</div>
+        <h4 style="font-size:20px">${stats.activeBookings}</h4>
+      </div></div>
+      <div class="card"><div class="card-body">
+        <div class="cat">Open disputes</div>
+        <h4 style="font-size:20px;color:var(--red)">${stats.openDisputes}</h4>
+      </div></div>
+    `;
+  }
+
+  async function loadPendingVendors() {
+    const vendors = await apiFetch("/admin/vendors/pending");
+    const el = document.getElementById("pending-vendors");
+    if (!vendors.length) {
+      el.innerHTML = `<div class="empty-state">No pending vendor approvals right now.</div>`;
+      return;
+    }
+    el.innerHTML = vendors.map(v => `
+      <div class="list-item">
+        <div class="info">
+          <h4>${v.businessName}</h4>
+          <p>${v.user.name} · ${v.user.email} · ${v.category} · ${v.city}</p>
+        </div>
+        <div style="display:flex;gap:8px">
+          <button class="btn btn-sm btn-fill" onclick="approveVendor(${v.id})">Approve</button>
+          <button class="btn btn-sm btn-outline-danger" onclick="rejectVendor(${v.id})">Reject</button>
+        </div>
+      </div>
+    `).join("");
+  }
+
+  async function approveVendor(id) {
+    try {
+      await apiFetch(`/admin/vendors/${id}/approve`, { method: "POST" });
+      loadPendingVendors();
+    } catch (err) { alert(err.message); }
+  }
+
+  async function rejectVendor(id) {
+    if (!confirm("Reject this vendor? They won't be able to list packages.")) return;
+    try {
+      await apiFetch(`/admin/vendors/${id}/reject`, { method: "POST" });
+      loadPendingVendors();
+    } catch (err) { alert(err.message); }
+  }
+
+  async function loadDisputes() {
+    const bookings = await apiFetch("/admin/bookings/disputed");
+    const el = document.getElementById("disputed-bookings");
+    if (!bookings.length) {
+      el.innerHTML = `<div class="empty-state">No open disputes.</div>`;
+      return;
+    }
+    el.innerHTML = bookings.map(b => `
+      <div class="list-item">
+        <div class="info">
+          <h4>Booking #${b.id} · ${b.vendor.businessName}</h4>
+          <p>${b.customer.name} (${b.customer.email}) · ${formatMoney(b.totalAmount)}</p>
+          <p style="color:var(--red)">"${b.disputeReason || "No reason given"}"</p>
+        </div>
+        <div style="display:flex;gap:8px">
+          <button class="btn btn-sm btn-fill" onclick="resolveDispute(${b.id}, 'release')">Release funds to vendor</button>
+          <button class="btn btn-sm btn-outline-danger" onclick="resolveDispute(${b.id}, 'refund')">Refund customer</button>
+        </div>
+      </div>
+    `).join("");
+  }
+
+  async function resolveDispute(bookingId, action) {
+    try {
+      await apiFetch(`/payments/${bookingId}/${action}`, { method: "POST" });
+      alert(`${action === "release" ? "Funds released to vendor" : "Customer refunded"}.`);
+      loadDisputes();
+      loadStats();
+    } catch (err) { alert(err.message); }
+  }
+
+  async function loadCoupons() {
+    const coupons = await apiFetch("/admin/coupons");
+    const el = document.getElementById("coupons-list");
+    if (!coupons.length) {
+      el.innerHTML = `<div class="empty-state">No coupons yet.</div>`;
+      return;
+    }
+    el.innerHTML = coupons.map(c => `
+      <div class="list-item">
+        <div class="info">
+          <h4>${c.code} ${c.active ? "" : "(inactive)"}</h4>
+          <p>${c.type === "PERCENT" ? c.value + "% off" : formatMoney(c.value) + " off"}
+            ${c.minOrder ? " · min " + formatMoney(c.minOrder) : ""}
+            ${c.maxUses ? ` · ${c.usedCount}/${c.maxUses} used` : ` · ${c.usedCount} used`}
+            ${c.expiresAt ? " · expires " + new Date(c.expiresAt).toLocaleDateString() : ""}</p>
+        </div>
+        <button class="btn btn-sm ${c.active ? "btn-outline-danger" : "btn-fill"}" onclick="toggleCoupon(${c.id}, ${!c.active})">
+          ${c.active ? "Deactivate" : "Activate"}
+        </button>
+      </div>
+    `).join("");
+  }
+
+  document.getElementById("coupon-form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    try {
+      await apiFetch("/admin/coupons", {
+        method: "POST",
+        body: JSON.stringify({
+          code: document.getElementById("c-code").value,
+          type: document.getElementById("c-type").value,
+          value: Number(document.getElementById("c-value").value),
+          minOrder: document.getElementById("c-min").value || undefined,
+          maxUses: document.getElementById("c-max-uses").value || undefined,
+          expiresAt: document.getElementById("c-expires").value || undefined,
+        }),
+      });
+      e.target.reset();
+      loadCoupons();
+    } catch (err) { alert(err.message); }
+  });
+
+  async function toggleCoupon(id, active) {
+    try {
+      await apiFetch(`/admin/coupons/${id}`, { method: "PATCH", body: JSON.stringify({ active }) });
+      loadCoupons();
+    } catch (err) { alert(err.message); }
+  }
+
+  async function loadSettings() {
+    const settings = await apiFetch("/admin/settings");
+    document.getElementById("s-sitename").value = settings.siteName || "Loomybox";
+    document.getElementById("s-accent").value = settings.accentColor || "#E8607C";
+    document.getElementById("s-headline").value = settings.heroHeadline || "";
+    document.getElementById("s-subtext").value = settings.heroSubtext || "";
+  }
+
+  document.getElementById("settings-form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    try {
+      await apiFetch("/admin/settings", {
+        method: "PUT",
+        body: JSON.stringify({
+          siteName: document.getElementById("s-sitename").value,
+          accentColor: document.getElementById("s-accent").value,
+          heroHeadline: document.getElementById("s-headline").value,
+          heroSubtext: document.getElementById("s-subtext").value,
+        }),
+      });
+      document.getElementById("settings-saved").textContent = "Saved ✓ — changes are live on the homepage now.";
+      setTimeout(() => (document.getElementById("settings-saved").textContent = ""), 3000);
+    } catch (err) { alert(err.message); }
+  });
+
+  // ---- Homepage section builder ----
+  // Stored as a single JSON-encoded setting ("homeSections") under the same
+  // generic Setting table used for accent color / hero copy — no schema or
+  // backend route changes needed to support this.
+  let homeSections = [];
+
+  async function loadSections() {
+    const settings = await apiFetch("/admin/settings");
+    try { homeSections = settings.homeSections ? JSON.parse(settings.homeSections) : []; }
+    catch (e) { homeSections = []; }
+    renderSectionsList();
+  }
+
+  async function saveSections() {
+    await apiFetch("/admin/settings", {
+      method: "PUT",
+      body: JSON.stringify({ homeSections: JSON.stringify(homeSections) }),
+    });
+  }
+
+  function renderSectionsList() {
+    const el = document.getElementById("sections-list");
+    if (!homeSections.length) {
+      el.innerHTML = `<div class="empty-state">No homepage sections yet — add one above.</div>`;
+      return;
+    }
+    el.innerHTML = homeSections.map((s, i) => `
+      <div class="list-item">
+        <div class="info">
+          <h4>${s.title || "(untitled)"} ${s.enabled === false ? "(hidden)" : ""}</h4>
+          <p>${s.type === "banner" ? "Image banner" : "Text block"} · ${s.placement === "top" ? "Top of page" : "Bottom of page"}</p>
+        </div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap">
+          <button class="btn btn-sm" ${i === 0 ? "disabled" : ""} onclick="moveSection(${i}, -1)">↑</button>
+          <button class="btn btn-sm" ${i === homeSections.length - 1 ? "disabled" : ""} onclick="moveSection(${i}, 1)">↓</button>
+          <button class="btn btn-sm ${s.enabled === false ? "btn-fill" : "btn-outline-danger"}" onclick="toggleSection(${i})">
+            ${s.enabled === false ? "Enable" : "Disable"}
+          </button>
+          <button class="btn btn-sm btn-outline-danger" onclick="deleteSection(${i})">Delete</button>
+        </div>
+      </div>
+    `).join("");
+  }
+
+  async function moveSection(index, dir) {
+    const target = index + dir;
+    if (target < 0 || target >= homeSections.length) return;
+    [homeSections[index], homeSections[target]] = [homeSections[target], homeSections[index]];
+    renderSectionsList();
+    await saveSections();
+  }
+
+  async function toggleSection(index) {
+    homeSections[index].enabled = homeSections[index].enabled === false ? true : false;
+    renderSectionsList();
+    await saveSections();
+  }
+
+  async function deleteSection(index) {
+    if (!confirm("Delete this homepage section?")) return;
+    homeSections.splice(index, 1);
+    renderSectionsList();
+    await saveSections();
+  }
+
+  document.getElementById("section-form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    homeSections.push({
+      id: "s" + Date.now(),
+      type: document.getElementById("sec-type").value,
+      placement: document.getElementById("sec-placement").value,
+      enabled: true,
+      title: document.getElementById("sec-title").value,
+      body: document.getElementById("sec-body").value,
+      imageUrl: document.getElementById("sec-image").value,
+      buttonText: document.getElementById("sec-btn-text").value,
+      buttonLink: document.getElementById("sec-btn-link").value,
+    });
+    renderSectionsList();
+    try {
+      await saveSections();
+      e.target.reset();
+      document.getElementById("sec-placement").value = "bottom";
+    } catch (err) { alert(err.message); }
+  });
+
+  loadStats();
+  loadPendingVendors();
+  loadDisputes();
+  loadFlags();
+  loadCoupons();
+  loadSettings();
+  loadSections();
+
+  async function loadFlags() {
+    const el = document.getElementById("admin-flags");
+    const flags = await apiFetch("/admin/flags");
+    if (!flags.length) {
+      el.innerHTML = `<div class="empty-state">No flags right now — everything looks normal.</div>`;
+      return;
+    }
+    const labels = { REPEAT_DISPUTES: "Repeat disputes", PRICE_OUTLIER: "Price outlier", INACTIVE_VENDOR: "Inactive vendor" };
+    el.innerHTML = flags.map(f => `
+      <div class="flag-item ${f.type === "REPEAT_DISPUTES" ? "severe" : ""}">
+        <span class="flag-type">${labels[f.type] || f.type}</span>
+        ${escapeHtml(f.vendorName || f.packageName || "")} — ${escapeHtml(f.detail)}
+      </div>
+    `).join("");
+  }
+</script>
+</body>
+</html>

@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Loomybox.com — find and book event services</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+
+<header><div class="header-inner" id="site-nav"></div></header>
+<div class="category-strip">
+  <div class="wrap" id="category-strip-links"></div>
+</div>
+
+<div class="wrap page">
+
+  <div class="hero">
+    <div class="hero-copy">
+      <h2 id="hero-headline">Plan the day. Skip the guesswork.</h2>
+      <p id="hero-subtext">Compare verified event partners and book securely — payment held in escrow until your event is delivered.</p>
+      <div class="hero-search">
+        <input type="text" id="search-input" placeholder="Search packages, e.g. 'photography'">
+        <button class="btn btn-fill" onclick="goSearch()">Search</button>
+      </div>
+      <a href="plan.html" class="hero-ai-chip">✨ Or let AI plan your event for you →</a>
+    </div>
+    <div class="hero-mark" id="hero-mark-slot"></div>
+  </div>
+
+  <p style="text-align:center;margin:18px 0 24px">
+    <a href="search.html" style="color:var(--pink);font-size:13.5px;font-weight:500">Browse all services with filters →</a>
+  </p>
+
+  <div id="sections-top"></div>
+
+  <div id="recommended-section"></div>
+
+  <!-- A quieter, supporting gallery — not competing with the hero for attention -->
+  <div class="swiper-wrap" id="photo-swiper" style="display:none">
+    <div class="swiper-track" id="swiper-track"></div>
+    <button class="swiper-arrow prev" id="swiper-prev" aria-label="Previous">&#8249;</button>
+    <button class="swiper-arrow next" id="swiper-next" aria-label="Next">&#8250;</button>
+    <div class="swiper-dots" id="swiper-dots"></div>
+  </div>
+
+  <div id="sections-bottom"></div>
+</div>
+
+<footer>Loomybox.com · connecting customers with trusted event partners</footer>
+
+<script src="assets/api.js"></script>
+<script>
+  document.getElementById("category-strip-links").innerHTML = CATEGORIES.map(c => `
+    <a href="search.html?category=${c.value}">${categoryIconSvg(c.value)}<span>${c.label}</span></a>
+  `).join("");
+
+  function goSearch() {
+    const val = document.getElementById("search-input").value.trim();
+    const params = new URLSearchParams();
+    if (val) params.set("search", val);
+    window.location.href = `search.html${params.toString() ? "?" + params.toString() : ""}`;
+  }
+
+  document.getElementById("search-input").addEventListener("keydown", (e) => {
+    if (e.key === "Enter") goSearch();
+  });
+
+  renderNav("browse");
+  document.getElementById("hero-mark-slot").innerHTML = brandMarkSvg();
+
+  loadSiteSettings().then(settings => {
+    if (settings.heroHeadline) document.getElementById("hero-headline").textContent = settings.heroHeadline;
+    if (settings.heroSubtext) document.getElementById("hero-subtext").textContent = settings.heroSubtext;
+    renderHomeSections(settings);
+  });
+
+  // Renders the sections built in admin.html → "Homepage Sections", in the order
+  // and placement (top/bottom) the admin chose, skipping any turned off there.
+  function renderHomeSections(settings) {
+    let sections = [];
+    try { sections = settings.homeSections ? JSON.parse(settings.homeSections) : []; }
+    catch (e) { sections = []; }
+
+    sections = sections.filter(s => s.enabled !== false);
+    const top = sections.filter(s => s.placement === "top");
+    const bottom = sections.filter(s => (s.placement || "bottom") === "bottom");
+
+    document.getElementById("sections-top").innerHTML = top.map(sectionHtml).join("");
+    document.getElementById("sections-bottom").innerHTML = bottom.map(sectionHtml).join("");
+  }
+
+  function sectionHtml(s) {
+    const title = s.title ? `<h3>${escapeHtml(s.title)}</h3>` : "";
+    const body = s.body ? `<p>${escapeHtml(s.body)}</p>` : "";
+    const button = (s.buttonText && s.buttonLink)
+      ? `<a class="btn btn-fill" href="${escapeHtml(s.buttonLink)}">${escapeHtml(s.buttonText)}</a>`
+      : "";
+
+    if (s.type === "banner") {
+      const img = s.imageUrl ? `<div class="section-banner-img"><img src="${escapeHtml(s.imageUrl)}" alt="${escapeHtml(s.title || "")}"></div>` : "";
+      return `<div class="home-section banner-section">${img}<div class="section-banner-content">${title}${body}${button}</div></div>`;
+    }
+    return `<div class="home-section text-section">${title}${body}${button}</div>`;
+  }
+
+  async function loadRecommended() {
+    const section = document.getElementById("recommended-section");
+    let recommended = [];
+    let heading = "Popular right now";
+
+    // If the person has items in their wishlist, personalize by their most-viewed category.
+    const user = getUser();
+    if (user && user.role === "CUSTOMER") {
+      try {
+        const wishlist = await apiFetch("/wishlist");
+        if (wishlist.length) {
+          const topCategory = wishlist[0].package.vendor.category;
+          recommended = await apiFetch(`/packages?category=${topCategory}&sort=rating`);
+          heading = "Recommended for you";
+        }
+      } catch (e) { /* not logged in or no wishlist yet, fall through to popular */ }
+    }
+
+    if (!recommended.length) {
+      recommended = await apiFetch("/packages?sort=rating");
+    }
+    recommended = recommended.slice(0, 8);
+
+    if (!recommended.length) { section.innerHTML = ""; return; }
+
+    section.innerHTML = `
+      <p class="section-label">${heading}</p>
+      <div class="grid">
+        ${recommended.map(pkg => `
+          <div class="card" style="cursor:pointer" onclick="window.location.href='package.html?id=${pkg.id}'">
+            <div class="card-img">${pkg.imageUrl ? `<img src="${pkg.imageUrl}" alt="${pkg.name}">` : categoryIconSvg(pkg.vendor.category)}</div>
+            <div class="card-body">
+              <div class="cat">${pkg.vendor.category} · ${pkg.vendor.city}</div>
+              <h4>${pkg.name}</h4>
+              <span class="rating-badge">★ ${pkg.vendor.rating.toFixed(1)}</span>
+              ${priceRowHtml(pkg)}
+            </div>
+          </div>
+        `).join("")}
+      </div>
+    `;
+  }
+
+  loadRecommended();
+
+  // ---- Swipeable photo carousel ----
+  // Pulls top-rated packages that have a real photo and lets the visitor swipe
+  // (touch drag on mobile, mouse drag on desktop) or use the arrows/dots.
+  async function loadSwiper() {
+    let slides = [];
+    try {
+      const pkgs = await apiFetch("/packages?sort=rating");
+      slides = pkgs.filter(p => p.imageUrl).slice(0, 8);
+    } catch (e) { /* backend unreachable — just skip the carousel */ }
+
+    if (!slides.length) return;
+
+    const wrap = document.getElementById("photo-swiper");
+    const track = document.getElementById("swiper-track");
+    const dotsEl = document.getElementById("swiper-dots");
+    wrap.style.display = "block";
+    wrap.insertAdjacentHTML("beforebegin", `<p class="section-label" style="margin-top:40px">Featured moments</p>`);
+
+    track.innerHTML = slides.map(pkg => `
+      <div class="swiper-slide" onclick="window.location.href='package.html?id=${pkg.id}'">
+        <img src="${pkg.imageUrl}" alt="${escapeHtml(pkg.name)}" draggable="false">
+        <div class="swiper-caption">
+          <div class="cat">${escapeHtml(pkg.vendor.category)} · ${escapeHtml(pkg.vendor.city)}</div>
+          <h4>${escapeHtml(pkg.name)}</h4>
+          <div class="price">₹${pkg.price.toLocaleString("en-IN")}</div>
+        </div>
+      </div>
+    `).join("");
+
+    dotsEl.innerHTML = slides.map((_, i) => `<button data-i="${i}"></button>`).join("");
+
+    let current = 0;
+    let autoplayTimer = null;
+
+    function goTo(i) {
+      current = (i + slides.length) % slides.length;
+      track.style.transform = `translateX(-${current * 100}%)`;
+      [...dotsEl.children].forEach((d, idx) => d.classList.toggle("active", idx === current));
+    }
+    function next() { goTo(current + 1); }
+    function prev() { goTo(current - 1); }
+
+    function startAutoplay() { autoplayTimer = setInterval(next, 4500); }
+    function stopAutoplay() { clearInterval(autoplayTimer); }
+
+    document.getElementById("swiper-next").addEventListener("click", () => { next(); stopAutoplay(); startAutoplay(); });
+    document.getElementById("swiper-prev").addEventListener("click", () => { prev(); stopAutoplay(); startAutoplay(); });
+    dotsEl.addEventListener("click", (e) => {
+      if (e.target.dataset.i === undefined) return;
+      goTo(Number(e.target.dataset.i)); stopAutoplay(); startAutoplay();
+    });
+
+    // Drag / swipe support (touch + mouse)
+    let startX = 0, deltaX = 0, dragging = false;
+
+    function dragStart(x) { dragging = true; startX = x; deltaX = 0; track.classList.add("dragging"); stopAutoplay(); }
+    function dragMove(x) {
+      if (!dragging) return;
+      deltaX = x - startX;
+      track.style.transform = `translateX(calc(-${current * 100}% + ${deltaX}px))`;
+    }
+    function dragEnd() {
+      if (!dragging) return;
+      dragging = false;
+      track.classList.remove("dragging");
+      const threshold = wrap.offsetWidth * 0.15;
+      if (deltaX < -threshold) next();
+      else if (deltaX > threshold) prev();
+      else goTo(current);
+      startAutoplay();
+    }
+
+    track.addEventListener("touchstart", (e) => dragStart(e.touches[0].clientX), { passive: true });
+    track.addEventListener("touchmove", (e) => dragMove(e.touches[0].clientX), { passive: true });
+    track.addEventListener("touchend", dragEnd);
+
+    track.addEventListener("mousedown", (e) => { e.preventDefault(); dragStart(e.clientX); });
+    window.addEventListener("mousemove", (e) => dragMove(e.clientX));
+    window.addEventListener("mouseup", dragEnd);
+
+    goTo(0);
+    startAutoplay();
+  }
+
+  loadSwiper();
+</script>
+</body>
+</html>
