@@ -42,6 +42,10 @@
       <label>Password</label>
       <input type="password" id="register-password" required minlength="6" style="width:100%">
     </div>
+    <div class="field">
+      <label>WhatsApp number <span style="color:var(--ink-soft);font-weight:400">(optional — get booking updates on WhatsApp)</span></label>
+      <input type="tel" id="register-phone" placeholder="+91 98XXXXXXXX" style="width:100%">
+    </div>
     <button class="btn btn-fill" style="width:100%" type="submit">Create account</button>
     <div class="error-msg" id="register-error"></div>
   </form>
@@ -89,12 +93,13 @@
     const name = document.getElementById("register-name").value;
     const email = document.getElementById("register-email").value;
     const password = document.getElementById("register-password").value;
+    const phone = document.getElementById("register-phone").value.trim();
     const errEl = document.getElementById("register-error");
     errEl.textContent = "";
     try {
       const data = await apiFetch("/auth/register", {
         method: "POST",
-        body: JSON.stringify({ name, email, password, role: "CUSTOMER" }),
+        body: JSON.stringify({ name, email, password, role: "CUSTOMER", phone: phone || undefined }),
       });
       setSession(data.token, data.user);
       redirectAfterAuth(data.user);

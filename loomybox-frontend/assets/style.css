@@ -1,20 +1,27 @@
-@import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Inter:wght@400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,500;8..60,600;8..60,700&family=Inter:wght@400;500;600;700&display=swap');
 
 :root{
-  --ink:#212121;
-  --ink-soft:#6B6B6B;
-  --bg:#F1F3F6;
-  --card:#FFFFFF;
-  --line:#E3E3E8;
-  --pink:#E9226B;
-  --pink-dark:#C81659;
-  --pink-tint:#FDE9F1;
-  --gold:#D9A654;
-  --gold-tint:#FBF1DE;
-  --green:#2E8B57;
-  --green-tint:#E7F5EC;
-  --red:#D6404A;
-  --red-tint:#FBEAEB;
+  /* Palette grounded in Kerala's own visual vocabulary — kasavu (gold-bordered
+     white/ivory fabric worn at weddings and Onam), temple brass lamps
+     (nilavilakku), and the maroon used in traditional borders — rather than a
+     generic "celebration" coral-and-gold. */
+  --ink:#22271F;
+  --ink-soft:#5B6459;
+  --bg:#F7F3E8;
+  --card:#FFFEF9;
+  --line:#E4DCC8;
+  --pink:#8C2A2A;
+  --pink-dark:#6E1E1E;
+  --pink-tint:#F1E1DA;
+  --gold:#B9862E;
+  --gold-tint:#F2E8D0;
+  --green:#3F5D50;
+  --green-tint:#E4EDE7;
+  --red:#B4392E;
+  --red-tint:#F6E6E2;
+  /* legacy alias — a couple of older pages reference --rose directly */
+  --rose:var(--pink);
+  --rose-tint:var(--pink-tint);
 }
 *{box-sizing:border-box;margin:0;padding:0}
 body{
@@ -25,27 +32,30 @@ body{
   font-size:15px;
   -webkit-font-smoothing:antialiased;
 }
-h1,h2,h3{font-family:'Fraunces',serif;font-weight:500;line-height:1.2;letter-spacing:-0.01em;color:var(--ink)}
+h1,h2,h3{font-family:'Source Serif 4',serif;font-weight:600;line-height:1.2;letter-spacing:-0.01em;color:var(--ink)}
 a{color:inherit;text-decoration:none}
 .wrap{max-width:1200px;margin:0 auto;padding:0 24px}
 img{max-width:100%;display:block}
 
-/* ---- header (Flipkart-style: white bar, pill logo, pill vendor tab, bordered search) ---- */
-header{background:#fff;padding:14px 0;border-bottom:1px solid var(--line);box-shadow:0 1px 3px rgba(0,0,0,.04)}
+/* ---- header ---- */
+header{background:var(--card);padding:14px 0;border-bottom:1px solid var(--line)}
 .header-inner{display:flex;align-items:center;gap:18px;max-width:1200px;margin:0 auto;padding:0 24px;flex-wrap:wrap}
 .logo-block{display:flex;flex-direction:column;line-height:1}
-.logo{
-  font-family:'Fraunces',serif;font-size:19px;font-weight:600;color:#fff;letter-spacing:-0.01em;
-  background:var(--pink);padding:9px 18px;border-radius:6px;display:inline-block;
+.logo{display:inline-flex;align-items:center;gap:9px}
+.logo .logo-word{
+  font-family:'Source Serif 4',serif;font-size:21px;font-weight:600;letter-spacing:-0.01em;color:var(--ink);
 }
-.logo .logo-accent{color:#FFD9E8}
-.logo-tag{display:none} /* the tagline moves inside the pill's shadow area, kept simple per Flipkart's pattern */
+.lang-toggle{
+  background:none;border:1px solid var(--line);color:var(--ink-soft);font-size:12.5px;font-weight:500;
+  padding:7px 12px;border-radius:6px;cursor:pointer;white-space:nowrap;
+}
+.lang-toggle:hover{border-color:var(--pink);color:var(--pink)}
 .vendor-pill{
-  background:#fff;border:1px solid var(--line);color:var(--ink);font-size:13.5px;font-weight:500;
+  background:var(--card);border:1px solid var(--line);color:var(--ink);font-size:13.5px;font-weight:500;
   padding:9px 16px;border-radius:6px;display:inline-flex;align-items:center;gap:6px;white-space:nowrap;
 }
 .vendor-pill:hover{border-color:var(--pink);color:var(--pink)}
-.header-search{flex:1;min-width:220px;display:flex;background:#fff;border:1px solid var(--line);border-radius:6px;overflow:hidden}
+.header-search{flex:1;min-width:220px;display:flex;background:var(--card);border:1px solid var(--line);border-radius:6px;overflow:hidden}
 .header-search input{border:none;flex:1;padding:11px 14px;font-size:14px;outline:none;background:transparent;color:var(--ink)}
 .header-search input::placeholder{color:var(--ink-soft)}
 .header-search button{border:none;background:transparent;color:var(--pink);padding:0 16px;cursor:pointer;font-size:16px}
@@ -86,7 +96,7 @@ header{background:#fff;padding:14px 0;border-bottom:1px solid var(--line);box-sh
 /* ---- layout ---- */
 .page{padding:28px 0 64px}
 .page h1{font-size:24px;margin-bottom:20px}
-.section-label{font-size:13px;color:var(--ink-soft);margin-bottom:14px;font-weight:600;letter-spacing:.01em;text-transform:uppercase}
+.section-label{font-size:15px;color:var(--ink);margin-bottom:14px;font-weight:600;font-family:'Source Serif 4',serif}
 
 /* banner */
 .banner{

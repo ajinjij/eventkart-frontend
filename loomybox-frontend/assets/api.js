@@ -1,6 +1,61 @@
 // ---- Configure this to point at your deployed backend ----
 const API_BASE = "https://fearless-optimism-production-9884.up.railway.app/api";
 
+// ---- Language toggle (English / Malayalam) ----
+// Covers the nav, homepage hero and category names — the highest-traffic
+// surfaces — rather than every string on every page. Falls back to English
+// for anything not in the dictionary.
+const TRANSLATIONS = {
+  en: {
+    vendorLogin: "Vendor Login", myPackages: "📦 My Packages",
+    searchPlaceholder: "Search for event services, vendors and more",
+    wishlist: "Wishlist", cart: "Cart", myOrders: "My Orders",
+    login: "Login", logout: "Logout", allKerala: "All Kerala",
+    heroHeadline: "Plan the day. Skip the guesswork.",
+    heroSubtext: "Compare verified event partners and book securely — payment held in escrow until your event is delivered.",
+    searchButton: "Search", searchInputPlaceholder: "Search packages, e.g. 'photography'",
+    planWithAi: "✨ Plan my event with AI",
+    planWithAiSub: "Get a checklist, budget split and matching vendors in one go",
+    browseAll: "Browse all services with filters",
+  },
+  ml: {
+    vendorLogin: "വെണ്ടർ ലോഗിൻ", myPackages: "📦 എന്റെ പാക്കേജുകൾ",
+    searchPlaceholder: "ഇവന്റ് സേവനങ്ങൾ, വെണ്ടർമാർ എന്നിവ തിരയുക",
+    wishlist: "വിഷ്‌ലിസ്റ്റ്", cart: "കാർട്ട്", myOrders: "എന്റെ ഓർഡറുകൾ",
+    login: "ലോഗിൻ", logout: "ലോഗ്ഔട്ട്", allKerala: "എല്ലാ കേരളവും",
+    heroHeadline: "ദിവസം പ്ലാൻ ചെയ്യൂ. ആശങ്കകൾ ഒഴിവാക്കൂ.",
+    heroSubtext: "വെരിഫൈഡ് ഇവന്റ് പാർട്‌ണർമാരെ താരതമ്യം ചെയ്ത് സുരക്ഷിതമായി ബുക്ക് ചെയ്യൂ — നിങ്ങളുടെ ഇവന്റ് പൂർത്തിയാകുന്നത് വരെ പേയ്‌മെന്റ് എസ്‌ക്രോയിൽ സൂക്ഷിക്കും.",
+    searchButton: "തിരയുക", searchInputPlaceholder: "പാക്കേജുകൾ തിരയുക, ഉദാ. 'photography'",
+    planWithAi: "✨ AI ഉപയോഗിച്ച് എന്റെ ഇവന്റ് പ്ലാൻ ചെയ്യൂ",
+    planWithAiSub: "ഒറ്റയടിക്ക് ഒരു ചെക്ക്‌ലിസ്റ്റ്, ബജറ്റ് വിഭജനം, യോജിക്കുന്ന വെണ്ടർമാർ എന്നിവ നേടൂ",
+    browseAll: "ഫിൽട്ടറുകൾക്കൊപ്പം എല്ലാ സേവനങ്ങളും ബ്രൗസ് ചെയ്യൂ",
+  },
+};
+const CATEGORY_LABELS_ML = {
+  event: "ഇവന്റ്", birthday: "ബർത്ത്ഡേ", transportation: "ട്രാൻസ്പോർട്ടേഷൻ",
+  corporate: "കോർപ്പറേറ്റ് ഇവന്റ്", "local-event": "ലോക്കൽ ഇവന്റ്",
+  photography: "ഫോട്ടോഗ്രഫി", "gift-hampers": "ഗിഫ്റ്റ് ഹാമ്പറുകൾ", "surprise-gift": "സർപ്രൈസ് ഗിഫ്റ്റ്",
+};
+
+function getLang() { return localStorage.getItem("ek_lang") || "en"; }
+function setLang(lang) { localStorage.setItem("ek_lang", lang); window.location.reload(); }
+function t(key) { return (TRANSLATIONS[getLang()] && TRANSLATIONS[getLang()][key]) || TRANSLATIONS.en[key] || key; }
+function categoryLabel(value) {
+  if (getLang() === "ml" && CATEGORY_LABELS_ML[value]) return CATEGORY_LABELS_ML[value];
+  const cat = CATEGORIES.find(c => c.value === value);
+  return cat ? cat.label : value;
+}
+
+// A small custom mark — an abstracted pandal arch (the decorated canopy
+// structure used at Kerala weddings/functions) with a brass lamp-flame at its
+// peak. Drawn in currentColor-friendly CSS vars so it follows the theme.
+function logoMarkSvg() {
+  return `<svg width="26" height="26" viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg" style="flex:0 0 auto">
+    <path d="M4 34 C4 16 14 6 20 6 C26 6 36 16 36 34" stroke="var(--pink)" stroke-width="4" fill="none" stroke-linecap="round"/>
+    <path d="M20 2 C23 6 23 10.5 20 13.5 C17 10.5 17 6 20 2 Z" fill="var(--gold)"/>
+  </svg>`;
+}
+
 // ---- Session helpers ----
 function getToken() { return localStorage.getItem("ek_token"); }
 function getUser() {
@@ -89,36 +144,41 @@ async function renderNav(activePage) {
 
   const searchHtml = activePage === "browse"
     ? "" // homepage renders its own search bar in the hero, avoid duplicating it
-    : `<div class="header-search"><input id="nav-search-input" type="text" placeholder="Search for event services, vendors and more"><button onclick="navSearch()">🔍</button></div>`;
+    : `<div class="header-search"><input id="nav-search-input" type="text" placeholder="${t("searchPlaceholder")}"><button onclick="navSearch()">🔍</button></div>`;
 
   const vendorPillHtml = (user && user.role === "VENDOR")
-    ? `<a href="vendor-dashboard.html" class="vendor-pill">📦 My Packages</a>`
-    : `<a href="vendor-auth.html" class="vendor-pill">Vendor Login</a>`;
+    ? `<a href="vendor-dashboard.html" class="vendor-pill">${t("myPackages")}</a>`
+    : `<a href="vendor-auth.html" class="vendor-pill">${t("vendorLogin")}</a>`;
 
   const locationHtml = renderLocationPicker();
+  const langHtml = `<button id="lang-toggle" class="lang-toggle" title="Switch language">${getLang() === "en" ? "മലയാളം" : "English"}</button>`;
 
   let rightLinks = "";
   if (user && user.role === "ADMIN") {
     rightLinks += `<a href="admin.html">⚙️ Admin dashboard</a>`;
   }
   if (user && user.role === "CUSTOMER") {
-    rightLinks += `<a href="wishlist.html" class="icon-badge">♥ Wishlist${wishlistCount ? `<span class="count">${wishlistCount}</span>` : ""}</a>`;
-    rightLinks += `<a href="cart.html" class="icon-badge">🛒 Cart${cartCount ? `<span class="count">${cartCount}</span>` : ""}</a>`;
-    rightLinks += `<a href="bookings.html">My Orders</a>`;
+    rightLinks += `<a href="wishlist.html" class="icon-badge">♥ ${t("wishlist")}${wishlistCount ? `<span class="count">${wishlistCount}</span>` : ""}</a>`;
+    rightLinks += `<a href="cart.html" class="icon-badge">🛒 ${t("cart")}${cartCount ? `<span class="count">${cartCount}</span>` : ""}</a>`;
+    rightLinks += `<a href="bookings.html">${t("myOrders")}</a>`;
   }
   rightLinks += user
-    ? `<button id="logout-btn">${user.name} · Logout</button>`
-    : `<a href="customer-auth.html" class="btn-login">Login</a>`;
+    ? `<button id="logout-btn">${user.name} · ${t("logout")}</button>`
+    : `<a href="customer-auth.html" class="btn-login">${t("login")}</a>`;
 
   nav.innerHTML = `
     <div class="logo-block">
-      <a href="index.html" class="logo" id="site-logo">Loomy<span class="logo-accent">box</span></a>
+      <a href="index.html" class="logo" id="site-logo">${logoMarkSvg()}<span class="logo-word">Loomybox</span></a>
     </div>
     ${vendorPillHtml}
     ${searchHtml}
     ${locationHtml}
+    ${langHtml}
     <div class="header-actions">${rightLinks}</div>
   `;
+
+  const langBtn = document.getElementById("lang-toggle");
+  if (langBtn) langBtn.onclick = () => setLang(getLang() === "en" ? "ml" : "en");
 
   const logoutBtn = document.getElementById("logout-btn");
   if (logoutBtn) {
@@ -134,13 +194,12 @@ async function renderNav(activePage) {
     };
   }
 
-  // If the admin has set a custom site name in Settings, swap it in once it loads.
-  // The default "Loomybox" keeps its two-tone pink/white styling; a custom name
-  // renders as a single white wordmark (still on-brand with the pink tagline below it).
+  // If the admin has set a custom site name in Settings, swap in just the
+  // wordmark text once it loads — the mark icon stays untouched.
   loadSiteSettings().then(settings => {
-    const logoEl = document.getElementById("site-logo");
-    if (logoEl && settings.siteName && settings.siteName !== "Loomybox") {
-      logoEl.textContent = settings.siteName;
+    const wordEl = document.querySelector("#site-logo .logo-word");
+    if (wordEl && settings.siteName && settings.siteName !== "Loomybox") {
+      wordEl.textContent = settings.siteName;
     }
   });
 }

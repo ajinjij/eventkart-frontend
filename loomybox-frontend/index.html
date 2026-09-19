@@ -22,13 +22,13 @@
     </div>
     <div class="search-bar" style="margin:0;flex:1;min-width:260px">
       <input type="text" id="search-input" placeholder="Search packages, e.g. 'photography'" style="min-width:200px">
-      <button class="btn btn-fill" onclick="goSearch()">Search</button>
+      <button class="btn btn-fill" id="hero-search-btn" onclick="goSearch()">Search</button>
     </div>
   </div>
 
   <div style="text-align:center;margin:14px 0 4px">
-    <a href="plan.html" class="btn btn-blue" style="font-weight:700">✨ Plan my event with AI</a>
-    <p style="font-size:12.5px;color:var(--ink-soft);margin-top:6px">Get a checklist, budget split and matching vendors in one go</p>
+    <a href="plan.html" class="btn btn-blue" style="font-weight:700" id="plan-ai-link">✨ Plan my event with AI</a>
+    <p style="font-size:12.5px;color:var(--ink-soft);margin-top:6px" id="plan-ai-sub">Get a checklist, budget split and matching vendors in one go</p>
   </div>
 
   <div class="swiper-wrap" id="photo-swiper" style="display:none">
@@ -39,7 +39,7 @@
   </div>
 
   <p style="text-align:center;margin:10px 0 24px">
-    <a href="search.html" style="color:var(--pink);font-size:13.5px;font-weight:500">Browse all services with filters →</a>
+    <a href="search.html" style="color:var(--pink);font-size:13.5px;font-weight:500" id="browse-all-link">Browse all services with filters</a>
   </p>
 
   <!-- Admin-built homepage sections (top placement) — see admin.html "Homepage Sections" -->
@@ -51,12 +51,22 @@
   <div id="sections-bottom"></div>
 </div>
 
-<footer>Loomybox.com · connecting customers with trusted event partners</footer>
+<footer>Loomybox.com — connecting customers with trusted event partners</footer>
 
 <script src="assets/api.js"></script>
 <script>
+  // Apply translations (falls back to the English strings already in the
+  // markup above if the dictionary doesn't have a key, or if lang is "en").
+  document.getElementById("hero-headline").textContent = t("heroHeadline");
+  document.getElementById("hero-subtext").textContent = t("heroSubtext");
+  document.getElementById("search-input").placeholder = t("searchInputPlaceholder");
+  document.getElementById("hero-search-btn").textContent = t("searchButton");
+  document.getElementById("plan-ai-link").textContent = t("planWithAi");
+  document.getElementById("plan-ai-sub").textContent = t("planWithAiSub");
+  document.getElementById("browse-all-link").textContent = t("browseAll") + " →";
+
   document.getElementById("category-strip-links").innerHTML = CATEGORIES.map(c => `
-    <a href="search.html?category=${c.value}">${categoryIconSvg(c.value)}<span>${c.label}</span></a>
+    <a href="search.html?category=${c.value}">${categoryIconSvg(c.value)}<span>${categoryLabel(c.value)}</span></a>
   `).join("");
 
   function goSearch() {

@@ -88,6 +88,7 @@
             <button class="btn btn-fill" style="flex:1" onclick="addToCart(${pkg.id}, this)">Add to cart</button>
             <div class="wishlist-heart ${inWishlist ? "active" : ""}" style="position:static;width:44px;height:44px;font-size:18px" onclick="toggleWishlist(${pkg.id}, this)">♥</div>
             <button class="btn" onclick="messageVendor(${pkg.vendor.id})" title="Ask this vendor a question">💬</button>
+            <a class="btn" style="background:#25D366;border-color:#25D366;color:#fff" href="${whatsappShareUrl(pkg)}" target="_blank" rel="noopener" title="Share on WhatsApp">WhatsApp</a>
           </div>
         </div>
       </div>
@@ -150,6 +151,13 @@
     if (user.role !== "CUSTOMER") { alert("Only customer accounts can message vendors."); return; }
     // messages.html resolves "with" as the vendorId for a customer sender.
     window.location.href = `messages.html?with=${vendorId}`;
+  }
+
+  // Builds a wa.me share link — no API keys needed, this just opens WhatsApp
+  // (web or app) with a pre-filled message the customer can send to anyone.
+  function whatsappShareUrl(pkg) {
+    const text = `Check out "${pkg.name}" by ${pkg.vendor.businessName} on Loomybox — ${formatMoney(pkg.price)}\n${window.location.href}`;
+    return `https://wa.me/?text=${encodeURIComponent(text)}`;
   }
 
   async function loadReviews(vendorId) {
